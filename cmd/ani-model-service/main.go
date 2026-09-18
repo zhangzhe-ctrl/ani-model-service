@@ -76,6 +76,13 @@ func run(logger *slog.Logger) error {
 	if err := c.Scan(&bc); err != nil {
 		return fmt.Errorf("scan config: %w", err)
 	}
+	mode := strings.TrimSpace(os.Getenv("ANI_MODEL_MODE"))
+	if mode == "catalog-read" {
+		return runCatalogRead(&bc, logger)
+	}
+	if mode != "" {
+		return fmt.Errorf("unsupported ANI_MODEL_MODE %q", mode)
+	}
 	modelService := service.NewModelService(nil)
 	var importWorker *worker.Worker
 	var storagePort bizstorage.Port

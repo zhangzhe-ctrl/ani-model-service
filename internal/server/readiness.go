@@ -1,10 +1,16 @@
 package server
 
-import "sync/atomic"
+import (
+	"context"
+	"sync/atomic"
+	"time"
+)
 
 // Readiness records only the local process lifecycle. A service with external
 // dependencies must add domain-specific readiness checks at composition time.
 type Readiness struct {
+	// Set once during composition, before servers start.
+	probe                     func(context.Context) error
 	ready                     atomic.Bool
 	postgres, storage, worker atomic.Bool
 	dependenciesRequired      atomic.Bool
@@ -22,10 +28,27 @@ func (r *Readiness) Ready() bool {
 	if !r.ready.Load() {
 		return false
 	}
+	if r.probe != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		return r.probe(ctx) == nil
+	}
 	if !r.dependenciesRequired.Load() {
 		return true
 	}
 	return r.postgres.Load() && r.storage.Load() && r.worker.Load()
+}
+
+// NewCatalogReadiness checks live PostgreSQL on every readiness observation.
+// It does not claim Storage or worker readiness.
+func NewCatalogReadiness(probe func(context.Context) error) *Readiness {
+	r := NewReadiness()
+	if probe == nil {
+		r.RequireDependencies()
+	} else {
+		r.probe = probe
+	}
+	return r
 }
 
 // RequireDependencies switches readiness to dependency-gated mode. Callers

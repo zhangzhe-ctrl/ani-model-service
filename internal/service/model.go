@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -164,6 +165,17 @@ func (s *ModelService) ListModels(ctx context.Context, in *modelv1.ListModelsReq
 	if err != nil {
 		return nil, mapIdentity(err)
 	}
+	if in == nil || in.GetKeyword() != "" || in.GetSource() != "" || in.GetCapability() != "" || in.GetPage().GetCursor() != "" {
+		return nil, errors2.BadRequest("INVALID_LIST_PARAMETERS", "cursor and extended filters are not supported")
+	}
+	switch in.GetStatus() {
+	case "", "pending", "downloading", "ready", "error":
+	default:
+		return nil, errors2.BadRequest("INVALID_STATUS", "unsupported model status")
+	}
+	if in.GetPage() != nil && (in.GetPage().GetLimit() < 1 || in.GetPage().GetLimit() > 1000) {
+		return nil, errors2.BadRequest("INVALID_LIMIT", "limit must be between 1 and 1000")
+	}
 	if s.catalog == nil {
 		return nil, errors2.New(503, "MODEL_STORE_UNAVAILABLE", "model store is not configured")
 	}
@@ -173,7 +185,8 @@ func (s *ModelService) ListModels(ctx context.Context, in *modelv1.ListModelsReq
 	}
 	rs, err := s.catalog.ListModels(ctx, p.TenantID, in.GetStatus(), limit)
 	if err != nil {
-		return nil, errors2.New(500, "MODEL_STORE_ERROR", err.Error())
+		slog.ErrorContext(ctx, "model catalog query failed", "error", err, "request_id", p.RequestID)
+		return nil, errors2.New(503, "MODEL_STORE_ERROR", "model catalog unavailable")
 	}
 	out := &modelv1.ListModelsResponse{Models: make([]*modelv1.Model, len(rs))}
 	for i, r := range rs {
