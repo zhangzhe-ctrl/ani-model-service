@@ -10,6 +10,7 @@ import (
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	"github.com/jackc/pgx/v5/pgxpool"
 	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
+	"github.com/zhangzhe-ctrl/ani-model-service/internal/biz/model"
 	"github.com/zhangzhe-ctrl/ani-model-service/internal/data/postgres"
 	"github.com/zhangzhe-ctrl/ani-model-service/internal/server"
 	"github.com/zhangzhe-ctrl/ani-model-service/internal/service"
@@ -60,8 +61,12 @@ func runCatalogRead(bc *conf.Bootstrap, logger *slog.Logger) error {
 		kratosgrpc.UnaryInterceptor(server.GovernanceUnary()), kratosgrpc.StreamInterceptor(server.DenyCatalogStreams),
 		kratosgrpc.DisableReflection(), kratosgrpc.Middleware(middlewares...),
 	)
-	catalog := postgres.NewCatalogStore(postgres.NewModelStore(pool))
-	conf.RegisterModelServiceServer(gs, service.NewModelServiceWithDependencies(nil, nil, catalog, nil, nil))
+	conf.RegisterModelServiceServer(gs, newCatalogService(pool, postgres.NewCatalogStore(postgres.NewModelStore(pool))))
 	admin := server.NewAdminServer(bc.Server.Admin, readiness, obs.Gatherer(), middlewares...)
 	return newApp(logger, gs, admin, readiness, obs, nil, bc.Server.ShutdownTimeout.AsDuration()).Run()
+}
+
+// The read-only composition has no storage, import worker or mutation ports.
+func newCatalogService(db postgres.DBTX, catalog model.Catalog) *service.ModelService {
+	return service.NewModelCatalogService(postgres.NewVersionStore(db), catalog)
 }

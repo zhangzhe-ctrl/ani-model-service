@@ -1,7 +1,7 @@
 # Governance catalog-read
 
-This backend mode serves the existing `/model.v1.ModelService/ListModels` RPC from
-the real PostgreSQL catalog. Select it explicitly with `ANI_MODEL_MODE=catalog-read`.
+This backend mode serves `ListModels` for Governance and `GetModelVersion` for
+Inference from the real PostgreSQL catalog and VersionStore. Select it explicitly with `ANI_MODEL_MODE=catalog-read`.
 The normal runtime remains separate; this mode does not start import, object
 storage, or worker components and does not claim they are ready.
 
@@ -29,16 +29,22 @@ withdraws readiness; successful reconnect restores it. No catalog data is cached
 as a substitute for database queries.
 
 TLS 1.3 requires a valid client chain and clientAuth usage with exact DNS SAN
-`ani-governance`; the verified certificate determines workload identity.
+`ani-governance` or `ani-inference-service`; the verified certificate determines
+workload identity. A certificate claiming both identities is rejected.
 Each metadata key must have exactly one value:
 
 - `x-ani-tenant-id`: canonical lowercase nonzero UUID.
-- `x-ani-actor`: `governance:user:<canonical nonzero uint32>`.
+- `x-ani-actor`: required for Governance as `governance:user:<canonical nonzero uint32>`.
+  For Inference, any supplied Actor is ignored and the receiver constructs
+  `service:ani-inference-service`.
 - `x-ani-request-id`: canonical lowercase nonzero UUID.
 
 Only then is a Principal created. Request `tenant_id` must equal its tenant UUID.
-The governance certificate is admitted only to ListModels; every other unary
-business method and every stream is denied. Reflection is disabled.
+The Governance certificate is admitted only to ListModels; the Inference
+certificate only to GetModelVersion. Every other unary business method and every
+stream is denied. Reflection is disabled. Inference requests must explicitly carry
+the same tenant UUID as metadata. Model trusts platform Inference to assert this
+tenant; it does not recheck a human Membership.
 
 ListModels supports optional status and limits 1–1000 (default 100). Nonempty
 cursor, keyword, source, and capability are rejected as InvalidArgument. Reads
@@ -57,3 +63,8 @@ The paired Governance repository contains `backend/scripts/model-lab/` for the
 Fedora-only isolated deployment and acceptance, and
 `docs/model-catalog-bootstrap.md` for pinned inputs, results, and retained resources.
 Private CA keys, passwords, and login tokens are never checked into either repo.
+
+The Inference cert-manager integration and C1–C8 evidence are recorded in
+[the execution record](execution/records/2026-09-19-inference-model-mtls.md).
+Certificates are loaded at startup; leaf reissuance requires a Model rollout and
+new client processes. Natural renewal and CA rotation are outside this acceptance.

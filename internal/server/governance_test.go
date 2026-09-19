@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -192,5 +193,58 @@ func TestCatalogReadinessLiveProbe(t *testing.T) {
 	missing.Set(true)
 	if missing.Ready() {
 		t.Fatal("nil probe accepted")
+	}
+}
+
+func TestInferenceReceiverMatrix(t *testing.T) {
+	tenant := "11111111-1111-4111-8111-111111111111"
+	request := "22222222-2222-4222-8222-222222222222"
+	base := metadata.Pairs("x-ani-tenant-id", tenant, "x-ani-request-id", request, "x-ani-actor", "governance:user:99")
+	for _, tc := range []struct {
+		name, caller, method, tenant string
+		mutate                       func(metadata.MD)
+		want                         codes.Code
+	}{
+		{"valid-forged-actor", InferenceSAN, GetModelVersionMethod, tenant, nil, codes.OK},
+		{"list-denied", InferenceSAN, ListModelsMethod, tenant, nil, codes.PermissionDenied},
+		{"write-denied", InferenceSAN, "/model.v1.ModelService/DeleteModel", tenant, nil, codes.PermissionDenied},
+		{"governance-version-denied", GovernanceSAN, GetModelVersionMethod, tenant, nil, codes.PermissionDenied},
+		{"wrong-caller", "other", GetModelVersionMethod, tenant, nil, codes.Unauthenticated},
+		{"tenant-mismatch", InferenceSAN, GetModelVersionMethod, request, nil, codes.PermissionDenied},
+		{"empty-request-tenant", InferenceSAN, GetModelVersionMethod, "", nil, codes.PermissionDenied},
+		{"tenant-missing", InferenceSAN, GetModelVersionMethod, tenant, func(m metadata.MD) { m.Delete("x-ani-tenant-id") }, codes.Unauthenticated},
+		{"tenant-duplicate", InferenceSAN, GetModelVersionMethod, tenant, func(m metadata.MD) { m.Append("x-ani-tenant-id", tenant) }, codes.Unauthenticated},
+		{"tenant-invalid", InferenceSAN, GetModelVersionMethod, tenant, func(m metadata.MD) { m.Set("x-ani-tenant-id", "bad") }, codes.Unauthenticated},
+		{"request-missing", InferenceSAN, GetModelVersionMethod, tenant, func(m metadata.MD) { m.Delete("x-ani-request-id") }, codes.Unauthenticated},
+		{"request-duplicate", InferenceSAN, GetModelVersionMethod, tenant, func(m metadata.MD) { m.Append("x-ani-request-id", request) }, codes.Unauthenticated},
+		{"request-invalid", InferenceSAN, GetModelVersionMethod, tenant, func(m metadata.MD) { m.Set("x-ani-request-id", "bad") }, codes.Unauthenticated},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cert := &x509.Certificate{DNSNames: []string{tc.caller}}
+			ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{cert}}, PeerCertificates: []*x509.Certificate{cert}}}})
+			md := base.Copy()
+			if tc.mutate != nil {
+				tc.mutate(md)
+			}
+			ctx = metadata.NewIncomingContext(ctx, md)
+			called := false
+			_, err := GovernanceUnary()(ctx, &modelv1.GetModelVersionRequest{TenantId: tc.tenant}, &grpc.UnaryServerInfo{FullMethod: tc.method}, func(ctx context.Context, _ any) (any, error) {
+				called = true
+				p, e := identity.FromContext(ctx)
+				if e != nil || p.Actor != "service:"+InferenceSAN || p.Workload != InferenceSAN {
+					t.Fatalf("principal %v %v", p, e)
+				}
+				return nil, nil
+			})
+			if status.Code(err) != tc.want || called != (tc.want == codes.OK) {
+				t.Fatalf("called=%v err=%v want=%v", called, err, tc.want)
+			}
+		})
+	}
+	if catalogCaller(&x509.Certificate{DNSNames: []string{GovernanceSAN, InferenceSAN}}) != "" {
+		t.Fatal("ambiguous identity accepted")
+	}
+	if status.Code(DenyCatalogStreams(nil, nil, nil, nil)) != codes.PermissionDenied {
+		t.Fatal("stream accepted")
 	}
 }

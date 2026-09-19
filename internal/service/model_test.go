@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 
@@ -250,5 +251,24 @@ func TestCreateModelVersionFinalizesUploadedArtifact(t *testing.T) {
 	}
 	if !versions.ready || got.GetStatus() != "ready" || artifacts.created.Reference != "tenant-a/model-a/v1/model.gguf" || artifacts.created.SHA256 != checksum {
 		t.Fatalf("version=%+v ready=%v artifact=%+v", got, versions.ready, artifacts.created)
+	}
+}
+
+func TestGetModelVersionDistinguishesStoreFailure(t *testing.T) {
+	ctx := identity.WithPrincipal(context.Background(), identity.Principal{TenantID: "t", Actor: "service:ani-inference-service", Workload: "ani-inference-service"})
+	for _, tc := range []struct {
+		name  string
+		cause error
+		code  int
+	}{
+		{"missing", pgx.ErrNoRows, 404}, {"database-timeout", context.DeadlineExceeded, 503},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewModelService(versionReaderFunc(func(context.Context, string, string) (model.Version, error) { return model.Version{}, tc.cause }))
+			out, err := s.GetModelVersion(ctx, &modelv1.GetModelVersionRequest{TenantId: "t", ModelVersionId: "v"})
+			if out != nil || kratoserrors.Code(err) != tc.code {
+				t.Fatalf("out=%v err=%v", out, err)
+			}
+		})
 	}
 }

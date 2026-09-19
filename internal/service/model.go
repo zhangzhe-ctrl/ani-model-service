@@ -100,7 +100,11 @@ func (s *ModelService) GetModelVersion(ctx context.Context, in *modelv1.GetModel
 		return nil, errors2.New(400, "INVALID_ARGUMENT", "a model version selector is required")
 	}
 	if err != nil {
-		return nil, mapDomain(err)
+		if stderrors.Is(err, pgx.ErrNoRows) || stderrors.Is(err, model.ErrModelNotReady) {
+			return nil, mapDomain(err)
+		}
+		slog.ErrorContext(ctx, "model version query failed", "error", err, "request_id", p.RequestID)
+		return nil, errors2.New(503, "MODEL_STORE_ERROR", "model version store unavailable")
 	}
 	if err := v.DeploymentInput(); err != nil {
 		return nil, mapDomain(err)
