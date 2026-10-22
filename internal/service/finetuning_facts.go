@@ -20,8 +20,21 @@ func (s *ModelService) ResolveFinetuningFacts(ctx context.Context, in *modelv1.R
 		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "unknown source request fields")
 	}
 	version, err := uuid.Parse(in.GetBaseModelVersionId())
-	if err != nil || version == uuid.Nil || (in.GetTargetModelId() == "") == (in.GetNewModelName() == "") {
-		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "one fixed base version and one target are required")
+	if err != nil || version == uuid.Nil {
+		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "one fixed base version is required")
+	}
+	switch target := in.Target.(type) {
+	case nil:
+	case *modelv1.ResolveFinetuningFactsRequest_TargetModelId:
+		if target.TargetModelId == "" {
+			return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "target model must not be empty")
+		}
+	case *modelv1.ResolveFinetuningFactsRequest_NewModelName:
+		if target.NewModelName == "" {
+			return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "new model name must not be empty")
+		}
+	default:
+		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "unknown model target")
 	}
 	targetID := in.GetTargetModelId()
 	if targetID != "" {
@@ -49,7 +62,7 @@ func (s *ModelService) ResolveFinetuningFacts(ctx context.Context, in *modelv1.R
 	out := &modelv1.ResolveFinetuningFactsResponse{TenantId: p.TenantID, ModelId: facts.Version.ModelID, ModelVersionId: facts.Version.ID, Format: facts.Version.Format, Bucket: a.Bucket, ObjectKey: a.Key, ObjectVersionId: a.VersionID, SizeBytes: a.SizeBytes, Sha256: a.SHA256, ConfigJson: a.ConfigJSON, TokenizerConfigJson: a.TokenizerConfigJSON, VerificationSource: "ani.model.finetuning.archive-sha256.v1"}
 	if facts.TargetModelID != "" {
 		out.Target = &modelv1.ResolveFinetuningFactsResponse_TargetModelId{TargetModelId: facts.TargetModelID}
-	} else {
+	} else if facts.NewModelName != "" {
 		out.Target = &modelv1.ResolveFinetuningFactsResponse_NewModelName{NewModelName: facts.NewModelName}
 	}
 	for _, file := range a.Files {
@@ -58,7 +71,7 @@ func (s *ModelService) ResolveFinetuningFacts(ctx context.Context, in *modelv1.R
 	normalized := &modelv1.ResolveFinetuningFactsRequest{TenantId: p.TenantID, BaseModelVersionId: version.String()}
 	if targetID != "" {
 		normalized.Target = &modelv1.ResolveFinetuningFactsRequest_TargetModelId{TargetModelId: targetID}
-	} else {
+	} else if in.GetNewModelName() != "" {
 		normalized.Target = &modelv1.ResolveFinetuningFactsRequest_NewModelName{NewModelName: in.GetNewModelName()}
 	}
 	if out.ValidateFor(normalized) != nil {

@@ -38,7 +38,7 @@ type FinetuningFacts struct {
 // trained-artifact preparation. Model has no separate approval registry: READY
 // and the tenant-owned catalogue are the existing source of those semantics.
 func ResolveFinetuningFacts(ctx context.Context, tenant, versionID, targetID, newName string, versions VersionReader, catalog Catalog, contents FinetuningArtifactReader) (FinetuningFacts, error) {
-	if versions == nil || catalog == nil || contents == nil || tenant == "" || versionID == "" || (targetID == "") == (newName == "") {
+	if versions == nil || catalog == nil || contents == nil || tenant == "" || versionID == "" || (targetID != "" && newName != "") {
 		return FinetuningFacts{}, ErrFinetuningFactsUnavailable
 	}
 	v, err := versions.GetVersion(ctx, tenant, versionID)
@@ -63,7 +63,7 @@ func ResolveFinetuningFacts(ctx context.Context, tenant, versionID, targetID, ne
 		if target.TenantID != tenant || target.ID != targetID || target.Status == "deleted" {
 			return FinetuningFacts{}, ErrFinetuningFactsUnavailable
 		}
-	} else {
+	} else if newName != "" {
 		if ValidateModelName(newName) != nil {
 			return FinetuningFacts{}, ErrInvalidModel
 		}

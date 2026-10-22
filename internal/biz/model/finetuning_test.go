@@ -76,3 +76,43 @@ func TestFinetuningFactsUsesReadyTenantSourceAndOriginalTarget(t *testing.T) {
 		})
 	}
 }
+
+type sourceOnlyFactsCatalog struct {
+	Catalog
+	owner Record
+	reads []string
+}
+
+func (c *sourceOnlyFactsCatalog) GetModel(_ context.Context, tenant, id string) (Record, error) {
+	c.reads = append(c.reads, id)
+	if tenant != c.owner.TenantID || id != c.owner.ID {
+		return Record{}, errors.New("unrequested target lookup")
+	}
+	return c.owner, nil
+}
+
+func TestFinetuningFactsWithoutTargetKeepsReadyTenantSourceChecks(t *testing.T) {
+	v := Version{TenantID: "tenant", ID: "source-version", ModelID: "source", Version: "v1", Format: "safetensors", Status: VersionReady, ArtifactProvider: "s3", ArtifactReference: "tenant/model.tar", ArtifactSHA256: strings.Repeat("a", 64), SizeBytes: 123}
+	cat := &sourceOnlyFactsCatalog{owner: Record{TenantID: "tenant", ID: "source"}}
+	source := &factsContents{version: "fixed-object-version"}
+	got, err := ResolveFinetuningFacts(context.Background(), "tenant", v.ID, "", "", factsVersions{v}, cat, source)
+	if err != nil || got.Version.ID != v.ID || got.TargetModelID != "" || got.NewModelName != "" || got.Artifact.VersionID != source.version || source.reads != 1 || len(cat.reads) != 1 || cat.reads[0] != v.ModelID {
+		t.Fatalf("source-only facts=%+v err=%v source reads=%d catalog reads=%v", got, err, source.reads, cat.reads)
+	}
+	for _, change := range []func(*Version){
+		func(v *Version) { v.TenantID = "other" },
+		func(v *Version) { v.Status = VersionImporting },
+		func(v *Version) { v.IsEncrypted = true },
+		func(v *Version) { v.Format = "gguf" },
+	} {
+		next := v
+		change(&next)
+		before := source.reads
+		if _, err := ResolveFinetuningFacts(context.Background(), "tenant", v.ID, "", "", factsVersions{next}, cat, source); err == nil || source.reads != before {
+			t.Fatal("artifact-only facts bypassed READY/ownership checks")
+		}
+	}
+	if _, err := ResolveFinetuningFacts(context.Background(), "tenant", v.ID, "target", "new-name", factsVersions{v}, cat, source); err == nil {
+		t.Fatal("both registration targets were accepted")
+	}
+}

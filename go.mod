@@ -64,7 +64,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	github.com/zhangzhe-ctrl/ani-accelerator-service v0.0.0-20261018033121-4f084c9f5f25 // indirect
-	github.com/zhangzhe-ctrl/ani-model-service/api v0.0.0-20261021205038-7365cc3bab21
+	github.com/zhangzhe-ctrl/ani-model-service/api v0.0.0-20261022131120-2a7a2a2851cf
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
