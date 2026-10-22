@@ -27,7 +27,7 @@ func factsPath(value string) bool {
 	return value != "" && len(value) <= 1024 && utf8.ValidString(value) && path.Clean(value) == value && value != "." && value != ".." && !strings.HasPrefix(value, "../") && !strings.HasPrefix(value, "/") && !strings.ContainsAny(value, "\\\x00\r\n") && strings.IndexFunc(value, func(r rune) bool { return r < 32 || r == 127 }) < 0
 }
 
-// ValidateFor checks the entire provider observation and its original target.
+// ValidateFor checks the entire provider observation and its optional target.
 // It does not manufacture access or READY state from a caller-supplied flag.
 func (r *ResolveFinetuningFactsResponse) ValidateFor(in *ResolveFinetuningFactsRequest) error {
 	invalid := func() error { return fmt.Errorf("invalid fixed finetuning facts") }
@@ -35,6 +35,10 @@ func (r *ResolveFinetuningFactsResponse) ValidateFor(in *ResolveFinetuningFactsR
 		return invalid()
 	}
 	switch target := in.Target.(type) {
+	case nil:
+		if r.Target != nil {
+			return invalid()
+		}
 	case *ResolveFinetuningFactsRequest_TargetModelId:
 		actual, ok := r.Target.(*ResolveFinetuningFactsResponse_TargetModelId)
 		if !ok || !factsID(target.TargetModelId) || actual.TargetModelId != target.TargetModelId {

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestFinetuningFactsValidateCompleteObservation(t *testing.T) {
+func completeFinetuningFacts() (*ResolveFinetuningFactsRequest, *ResolveFinetuningFactsResponse) {
 	tenant := "11111111-1111-4111-8111-111111111111"
 	version := "22222222-2222-4222-8222-222222222222"
 	in := &ResolveFinetuningFactsRequest{TenantId: tenant, BaseModelVersionId: version, Target: &ResolveFinetuningFactsRequest_NewModelName{NewModelName: "new-model"}}
@@ -18,6 +18,11 @@ func TestFinetuningFactsValidateCompleteObservation(t *testing.T) {
 	for _, name := range []string{"config.json", "model.safetensors", "tokenizer.json", "tokenizer_config.json"} {
 		out.Files = append(out.Files, &FinetuningArtifactFile{Path: name, SizeBytes: int64(len(config)), Sha256: digest})
 	}
+	return in, out
+}
+
+func TestFinetuningFactsValidateCompleteObservation(t *testing.T) {
+	in, out := completeFinetuningFacts()
 	if err := out.ValidateFor(in); err != nil {
 		t.Fatal(err)
 	}
@@ -47,5 +52,39 @@ func TestFinetuningFactsValidateCompleteObservation(t *testing.T) {
 		if factsJSONObject([]byte(raw)) {
 			t.Fatalf("ambiguous config accepted: %s", raw)
 		}
+	}
+}
+
+func TestFinetuningFactsWithoutRegistrationTargetStillValidatesSource(t *testing.T) {
+	in, out := completeFinetuningFacts()
+	in.Target, out.Target = nil, nil
+	if err := out.ValidateFor(in); err != nil {
+		t.Fatalf("verified source without a registration target: %v", err)
+	}
+	for _, test := range []struct {
+		name   string
+		change func(*ResolveFinetuningFactsRequest, *ResolveFinetuningFactsResponse)
+	}{
+		{"unexpected response target", func(_ *ResolveFinetuningFactsRequest, r *ResolveFinetuningFactsResponse) {
+			r.Target = &ResolveFinetuningFactsResponse_NewModelName{NewModelName: "unrequested"}
+		}},
+		{"typed empty target", func(q *ResolveFinetuningFactsRequest, _ *ResolveFinetuningFactsResponse) {
+			q.Target = &ResolveFinetuningFactsRequest_NewModelName{}
+		}},
+		{"foreign tenant", func(_ *ResolveFinetuningFactsRequest, r *ResolveFinetuningFactsResponse) { r.TenantId = r.ModelId }},
+		{"missing weights", func(_ *ResolveFinetuningFactsRequest, r *ResolveFinetuningFactsResponse) { r.Files = r.Files[:1] }},
+		{"unfixed source version", func(_ *ResolveFinetuningFactsRequest, r *ResolveFinetuningFactsResponse) { r.ObjectVersionId = "null" }},
+		{"unknown request field", func(q *ResolveFinetuningFactsRequest, _ *ResolveFinetuningFactsResponse) {
+			q.ProtoReflect().SetUnknown([]byte{0xa0, 0x06, 0x01})
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			q := proto.Clone(in).(*ResolveFinetuningFactsRequest)
+			r := proto.Clone(out).(*ResolveFinetuningFactsResponse)
+			test.change(q, r)
+			if r.ValidateFor(q) == nil {
+				t.Fatal("registration-free request bypassed source or target validation")
+			}
+		})
 	}
 }
