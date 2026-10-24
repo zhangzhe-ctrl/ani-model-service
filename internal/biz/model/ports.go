@@ -61,7 +61,7 @@ type VersionCatalog interface {
 	VersionReader
 	CreateVersion(context.Context, Version) (Version, error)
 	ListVersions(context.Context, string, string, ListOptions) ([]Version, error)
-	CountModelVersions(context.Context, string, string) (int64, error)
+	CountModelVersions(context.Context, string, string, ListOptions) (int64, error)
 }
 
 type PagedVersionCatalog interface {

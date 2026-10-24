@@ -12,3 +12,20 @@ func TestEventRequiresTrustedContextAndChange(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOperationResultDoesNotConfuseAcceptanceWithCompletion(t *testing.T) {
+	for _, tc := range []struct {
+		event Event
+		want  string
+	}{
+		{Event{Action: "model.create", AfterState: "pending"}, "succeeded"},
+		{Event{Action: "model_import.create", AfterState: "pending"}, "accepted"},
+		{Event{Action: "model_import.retry", AfterState: "importing"}, "accepted"},
+		{Event{Action: "model_import.create", AfterState: "failed"}, "failed"},
+		{Event{Action: "model.delete", ErrorClass: "MODEL_IN_USE"}, "failed"},
+	} {
+		if got := tc.event.Result(); got != tc.want {
+			t.Fatalf("event=%+v result=%s want=%s", tc.event, got, tc.want)
+		}
+	}
+}

@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	auditbiz "github.com/liangzai006/ani-model-service/internal/biz/audit"
 	"github.com/liangzai006/ani-model-service/internal/biz/model"
 	"github.com/liangzai006/ani-model-service/internal/biz/storage"
 	workbiz "github.com/liangzai006/ani-model-service/internal/biz/work"
 	"github.com/liangzai006/ani-model-service/internal/identity"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
@@ -40,6 +40,7 @@ type ModelService struct {
 	notifier       ImportNotifier
 	searcher       model.Searcher
 	bundleImporter model.BundleImporter
+	trained        model.TrainedArtifactRegistrar
 }
 
 // ImportNotifier wakes the durable import worker after a task is committed.
@@ -71,6 +72,9 @@ func (s *ModelService) SetImportTaskLogReader(r ImportTaskLogReader, namespace s
 func (s *ModelService) SetImportTaskRetrier(r workbiz.Retrier)           { s.taskRetry = r }
 func (s *ModelService) SetExternalModelSearcher(searcher model.Searcher) { s.searcher = searcher }
 func (s *ModelService) SetBundleImporter(importer model.BundleImporter)  { s.bundleImporter = importer }
+func (s *ModelService) SetTrainedArtifactRegistrar(registrar model.TrainedArtifactRegistrar) {
+	s.trained = registrar
+}
 
 func NewModelService(r model.VersionReader) *ModelService { return &ModelService{reader: r} }
 func NewModelServiceWithDependencies(r model.VersionReader, v model.VersionCatalog, c model.Catalog, st storage.Port, w workbiz.Creator) *ModelService {
@@ -166,7 +170,7 @@ func (s *ModelService) CreateModel(ctx context.Context, in *modelv1.CreateModelR
 	if err != nil {
 		return nil, mapStore(err)
 	}
-	if err := s.recordAudit(ctx, p, "model.create", "", r.Status, ""); err != nil {
+	if err := s.recordAudit(ctx, p, "model.create", "", r.Status, "", r.ID, ""); err != nil {
 		return nil, err
 	}
 	return toProtoModel(r), nil
@@ -377,7 +381,7 @@ func (s *ModelService) CreateModelVersion(ctx context.Context, in *modelv1.Creat
 		r.ArtifactProvider = "upload"
 		r.ArtifactReference = in.GetStoragePath()
 	}
-	if err := s.recordAudit(ctx, p, "model_version.create", "", r.Status, ""); err != nil {
+	if err := s.recordAudit(ctx, p, "model_version.create", "", r.Status, "", r.ModelID, r.ID); err != nil {
 		return nil, err
 	}
 	return toProtoVersion(r), nil
@@ -398,6 +402,10 @@ func (s *ModelService) ListModelVersions(ctx context.Context, in *modelv1.ListMo
 	if err != nil {
 		return nil, err
 	}
+	options.Status, err = model.NormalizeVersionStatus(in.GetStatus())
+	if err != nil {
+		return nil, errors2.BadRequest("INVALID_ARGUMENT", err.Error())
+	}
 	var rs []model.Version
 	var total int64
 	if paged, ok := s.versions.(model.PagedVersionCatalog); ok {
@@ -405,7 +413,7 @@ func (s *ModelService) ListModelVersions(ctx context.Context, in *modelv1.ListMo
 	} else {
 		rs, err = s.versions.ListVersions(ctx, p.TenantID, m.ID, options)
 		if err == nil {
-			total, err = s.versions.CountModelVersions(ctx, p.TenantID, m.ID)
+			total, err = s.versions.CountModelVersions(ctx, p.TenantID, m.ID, options)
 		}
 	}
 	if err != nil {
@@ -549,7 +557,7 @@ func (s *ModelService) ImportModel(ctx context.Context, in *modelv1.ImportModelR
 	if err != nil {
 		return nil, errors2.New(409, "IMPORT_CONFLICT", err.Error())
 	}
-	if err := s.recordAudit(ctx, p, "model_import.create", "", created.Status, created.ID); err != nil {
+	if err := s.recordAudit(ctx, p, "model_import.create", "", created.Status, created.ID, created.ModelID, created.VersionID); err != nil {
 		return nil, err
 	}
 	if s.notifier != nil {
@@ -585,7 +593,7 @@ func (s *ModelService) ImportModelBundle(ctx context.Context, in *modelv1.Import
 	if err != nil {
 		return nil, mapStore(err)
 	}
-	if err := s.recordAudit(ctx, p, "model_import_bundle.create", "", result.TaskStatus, result.TaskID); err != nil {
+	if err := s.recordAudit(ctx, p, "model_import_bundle.create", "", result.TaskStatus, result.TaskID, result.Model.ID, result.Version.ID); err != nil {
 		return nil, err
 	}
 	if s.notifier != nil {
@@ -686,7 +694,7 @@ func (s *ModelService) RetryImportTask(ctx context.Context, in *modelv1.RetryImp
 	if task.TenantID != "" && task.TenantID != p.TenantID {
 		return nil, mapIdentity(identity.ErrTenantMismatch)
 	}
-	if err := s.recordAudit(ctx, p, "model_import.retry", "failed", task.Status, task.ID); err != nil {
+	if err := s.recordAudit(ctx, p, "model_import.retry", "failed", task.Status, task.ID, task.ModelID, task.VersionID); err != nil {
 		return nil, err
 	}
 	if s.notifier != nil {
@@ -695,11 +703,11 @@ func (s *ModelService) RetryImportTask(ctx context.Context, in *modelv1.RetryImp
 	return &modelv1.RetryImportTaskResponse{Task: toProtoImportTask(task)}, nil
 }
 
-func (s *ModelService) recordAudit(ctx context.Context, p identity.Principal, operation, before, after, taskID string) error {
+func (s *ModelService) recordAudit(ctx context.Context, p identity.Principal, operation, before, after, taskID, modelID, versionID string) error {
 	if s.audit == nil {
 		return nil
 	}
-	if err := s.audit.Insert(ctx, auditbiz.Event{TenantID: p.TenantID, Actor: p.Actor, Workload: p.Workload, RequestID: p.RequestID, TaskID: taskID, Action: operation, BeforeState: before, AfterState: after}); err != nil {
+	if err := s.audit.Insert(ctx, auditbiz.Event{TenantID: p.TenantID, Actor: p.Actor, Workload: p.Workload, RequestID: p.RequestID, TaskID: taskID, ModelID: modelID, ModelVersionID: versionID, Action: operation, BeforeState: before, AfterState: after}); err != nil {
 		return errors2.New(500, "AUDIT_UNAVAILABLE", "audit event could not be persisted")
 	}
 	return nil

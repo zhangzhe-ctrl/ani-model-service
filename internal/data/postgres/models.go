@@ -9,17 +9,19 @@ import (
 )
 
 type AuditEvent struct {
-	TenantID    pgtype.UUID        `json:"tenant_id"`
-	ID          pgtype.UUID        `json:"id"`
-	Actor       string             `json:"actor"`
-	Workload    string             `json:"workload"`
-	RequestID   string             `json:"request_id"`
-	TaskID      pgtype.UUID        `json:"task_id"`
-	Action      string             `json:"action"`
-	BeforeState string             `json:"before_state"`
-	AfterState  string             `json:"after_state"`
-	ErrorClass  string             `json:"error_class"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	ID             pgtype.UUID        `json:"id"`
+	Actor          string             `json:"actor"`
+	Workload       string             `json:"workload"`
+	RequestID      string             `json:"request_id"`
+	TaskID         pgtype.UUID        `json:"task_id"`
+	Action         string             `json:"action"`
+	BeforeState    string             `json:"before_state"`
+	AfterState     string             `json:"after_state"`
+	ErrorClass     string             `json:"error_class"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ModelID        pgtype.UUID        `json:"model_id"`
+	ModelVersionID pgtype.UUID        `json:"model_version_id"`
 }
 
 type Model struct {

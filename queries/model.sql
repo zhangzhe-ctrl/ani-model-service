@@ -215,6 +215,7 @@ FROM public.model_versions v
 JOIN public.models m ON m.tenant_id = v.tenant_id AND m.id = v.model_id
 LEFT JOIN public.model_artifacts a ON a.tenant_id = v.tenant_id AND a.model_version_id = v.id
 WHERE v.tenant_id = $1 AND v.model_id = $2 AND v.status <> 'deleted' AND m.status <> 'deleted'
+  AND (sqlc.arg(status)::text = '' OR v.status = sqlc.arg(status)::text)
   AND (sqlc.narg(before_created_at)::timestamptz IS NULL
        OR (v.created_at, v.id) < (sqlc.narg(before_created_at)::timestamptz, sqlc.narg(before_id)::uuid))
 ORDER BY v.created_at DESC, v.id DESC
@@ -226,7 +227,8 @@ SELECT count(*)
 FROM public.model_versions v
 JOIN public.models m ON m.tenant_id = v.tenant_id AND m.id = v.model_id
 WHERE v.tenant_id = sqlc.arg(tenant_id) AND v.model_id = sqlc.arg(model_id)
-  AND v.status <> 'deleted' AND m.status <> 'deleted';
+  AND v.status <> 'deleted' AND m.status <> 'deleted'
+  AND (sqlc.arg(status)::text = '' OR v.status = sqlc.arg(status)::text);
 
 -- name: LatestModelVersions :many
 SELECT DISTINCT ON (v.model_id)
@@ -277,9 +279,9 @@ WHERE tenant_id = $1 AND id = $2 AND status = 'importing'
 -- name: InsertAuditEvent :exec
 INSERT INTO public.audit_events
  (tenant_id, id, actor, workload, request_id, task_id, action,
-  before_state, after_state, error_class)
+  before_state, after_state, error_class, model_id, model_version_id)
 VALUES ($1, $2, $3, $4, $5, NULLIF($6, '00000000-0000-0000-0000-000000000000')::uuid,
-        $7, $8, $9, $10);
+        $7, $8, $9, $10, sqlc.narg(model_id)::uuid, sqlc.narg(model_version_id)::uuid);
 
 -- name: CreateImportTask :one
 INSERT INTO public.model_import_tasks
@@ -426,3 +428,19 @@ VALUES (sqlc.arg(tenant_id), sqlc.arg(id), sqlc.arg(model_id), sqlc.arg(model_ve
         sqlc.arg(task_type), sqlc.arg(source), sqlc.arg(repo_id), sqlc.arg(revision),
         sqlc.arg(idempotency_key), sqlc.arg(request_fingerprint), 'pending')
 RETURNING *;
+
+-- name: ListModelOperations :many
+SELECT e.*, COALESCE(e.model_id, t.model_id) AS resolved_model_id,
+       COALESCE(e.model_version_id, t.model_version_id) AS resolved_model_version_id
+FROM public.audit_events e
+LEFT JOIN public.model_import_tasks t ON t.tenant_id = e.tenant_id AND t.id = e.task_id
+WHERE e.tenant_id = sqlc.arg(tenant_id)
+  AND COALESCE(e.model_id, t.model_id) = sqlc.arg(model_id)::uuid
+ORDER BY e.created_at DESC, e.id DESC
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountModelOperations :one
+SELECT count(*) FROM public.audit_events e
+LEFT JOIN public.model_import_tasks t ON t.tenant_id = e.tenant_id AND t.id = e.task_id
+WHERE e.tenant_id = sqlc.arg(tenant_id)
+  AND COALESCE(e.model_id, t.model_id) = sqlc.arg(model_id)::uuid;

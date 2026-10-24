@@ -20,7 +20,6 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=builder /out/ani-model-service /ani-model-service
 COPY --from=builder /out/configs /configs
-COPY THIRD_PARTY_NOTICES.go-kratos-layout.txt /THIRD_PARTY_NOTICES.go-kratos-layout.txt
 
 USER 65532:65532
 ENTRYPOINT ["/ani-model-service"]

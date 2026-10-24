@@ -21,7 +21,10 @@ SERVICE_NAME ?= ani-model-service
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.Name=$(SERVICE_NAME) -X main.Version=$(VERSION)
 
-.PHONY: tools check-buf supply-chain-tools check-govulncheck check-cyclonedx check-gitleaks config generate build test verify vuln secrets sbom supply-chain-verify audit clean help
+.PHONY: tools check-buf supply-chain-tools check-govulncheck check-cyclonedx check-gitleaks config generate build test test-api verify verify-api verify-api-compatibility vuln secrets sbom supply-chain-verify audit clean help
+
+# Runtime builds always resolve immutable published API versions.
+export GOWORK := off
 
 tools: check-buf
 
@@ -69,16 +72,31 @@ build:
 	mkdir -p bin
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/$(SERVICE_NAME) ./cmd/$(SERVICE_NAME)
 
-test:
+test-api:
+	cd api && $(GO) test -count=1 ./...
+
+test: test-api
 	$(GO) test -count=1 ./...
+
+verify-api:
+	cd api && $(GO) mod tidy -diff
+	cd api && $(GO) test -count=1 ./...
+	cd api && $(GO) vet ./...
+	cd api && $(GO) build -trimpath ./...
+	cd api && $(GO) mod verify
+
+verify-api-compatibility:
+	GO="$(GO)" ./scripts/verify-api-compatibility
 
 verify: check-buf
 	./scripts/verify-source $(BUF)
+	$(MAKE) verify-api
 	$(GO) mod tidy -diff
 	$(GO) test -count=1 ./...
 	$(GO) vet ./...
 	$(GO) build -trimpath ./...
 	$(GO) mod verify
+	$(MAKE) verify-api-compatibility
 	git diff --check
 
 vuln: check-govulncheck
@@ -102,6 +120,8 @@ help:
 	@echo "make tools    install pinned config generator"
 	@echo "make generate regenerate typed config"
 	@echo "make verify   run deterministic local quality gates"
+	@echo "make verify-api check the standalone API module"
+	@echo "make verify-api-compatibility check local API compatibility without changing build dependencies"
 	@echo "make vuln     scan the current dependency graph"
 	@echo "make secrets  scan all Git history with pinned Gitleaks"
 	@echo "make sbom     write a CycloneDX SBOM"

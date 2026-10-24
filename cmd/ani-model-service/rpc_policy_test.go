@@ -18,6 +18,7 @@ func TestModelServicePolicyAllowsGovernanceModelLifecycle(t *testing.T) {
 		"/model.v1.ModelService/CreateModelVersion",
 		"/model.v1.ModelService/GetModelVersion",
 		"/model.v1.ModelService/ListModelVersions",
+		"/model.v1.ModelService/ListModelOperations",
 		"/model.v1.ModelService/DeleteModelVersion",
 		"/model.v1.ModelService/GetUploadURL",
 		"/model.v1.ModelService/ImportModel",
@@ -26,6 +27,9 @@ func TestModelServicePolicyAllowsGovernanceModelLifecycle(t *testing.T) {
 		"/model.v1.ModelService/RetryImportTask",
 		"/model.v1.ModelService/GetModelDownloadURL",
 		"/model.v1.ModelService/SearchExternalModels",
+		"/model.v1.ModelService/PrepareTrainedArtifact",
+		"/model.v1.ModelService/CompleteTrainedArtifact",
+		"/model.v1.ModelService/AbortTrainedArtifact",
 	}
 	for _, method := range methods {
 		if !policy.IsAllowed("ani-governance", method) {
@@ -43,6 +47,38 @@ func TestModelServicePolicyAllowsGovernanceModelLifecycle(t *testing.T) {
 	}
 	if policy.IsAllowed("ani-inference.ani.internal", "/model.v1.ModelService/SearchExternalModels") {
 		t.Fatal("inference unexpectedly received external model search permission")
+	}
+}
+
+func TestModelDevHasOnlyFinetuningFactsAndOriginalRegistrationMethods(t *testing.T) {
+	policy := ModelServicePolicy()
+	for _, method := range []string{"ResolveFinetuningFacts", "GetTrainedArtifactRegistration", "GetTrainedArtifactUploadURL", "PrepareTrainedArtifact", "CompleteTrainedArtifact", "AbortTrainedArtifact"} {
+		if !policy.IsAllowed(modeldevClientIdentity, "/model.v1.ModelService/"+method) {
+			t.Fatalf("missing ModelDev method %s", method)
+		}
+	}
+	for _, method := range []string{"CreateModel", "CreateModelVersion", "DeleteModel", "DeleteModelVersion", "ImportModel", "GetUploadURL", "GetModelDownloadURL", "ListModels", "Unknown"} {
+		if policy.IsAllowed(modeldevClientIdentity, "/model.v1.ModelService/"+method) {
+			t.Fatalf("unexpected ModelDev permission %s", method)
+		}
+	}
+	for _, caller := range []string{"ani-modeldev", "ani-modeldev.ani.internal", "ani-governance.ani.internal", "*.ani.internal"} {
+		if policy.IsAllowed(caller, "/model.v1.ModelService/ResolveFinetuningFacts") {
+			t.Fatal("alias caller allowed")
+		}
+	}
+}
+
+func TestModelDevPrincipalRequiresItsOwnAuditMetadata(t *testing.T) {
+	valid := metadata.Pairs("x-ani-tenant-id", "tenant", "x-ani-actor", "modeldev:execution-owner", "x-ani-request-id", "request")
+	p, err := modeldevPrincipal(metadata.NewIncomingContext(context.Background(), valid))
+	if err != nil || p.Workload != modeldevClientIdentity || p.TenantID != "tenant" {
+		t.Fatalf("principal=%+v err=%v", p, err)
+	}
+	for _, md := range []metadata.MD{metadata.Pairs("x-ani-tenant-id", "tenant", "x-ani-actor", "governance:owner", "x-ani-request-id", "request"), metadata.Pairs("x-ani-tenant-id", "tenant", "x-ani-actor", "modeldev:owner"), metadata.Pairs("x-ani-tenant-id", "tenant", "x-ani-tenant-id", "other", "x-ani-actor", "modeldev:owner", "x-ani-request-id", "request")} {
+		if _, err := modeldevPrincipal(metadata.NewIncomingContext(context.Background(), md)); err == nil {
+			t.Fatal("invalid ModelDev metadata accepted")
+		}
 	}
 }
 

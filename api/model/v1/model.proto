@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package model.v1;
 
-option go_package = "github.com/liangzai006/ani-model-service/api/model/v1;modelv1";
+option go_package = "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1;modelv1";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -20,6 +20,7 @@ service ModelService {
   rpc DeleteModel(DeleteModelRequest) returns (google.protobuf.Empty);
   rpc GetModelVersion(GetModelVersionRequest) returns (GetModelVersionResponse);
   rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsResponse);
+  rpc ListModelOperations(ListModelOperationsRequest) returns (ListModelOperationsResponse);
   rpc DeleteModelVersion(DeleteModelVersionRequest) returns (DeleteModelVersionResponse);
   // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME Legacy contract returns ModelVersion directly.
   rpc CreateModelVersion(CreateModelVersionRequest) returns (ModelVersion);
@@ -31,6 +32,115 @@ service ModelService {
   rpc GetImportTaskLogs(GetImportTaskLogsRequest) returns (GetImportTaskLogsResponse);
   rpc RetryImportTask(RetryImportTaskRequest) returns (RetryImportTaskResponse);
   rpc GetModelDownloadURL(GetModelDownloadURLRequest) returns (GetModelDownloadURLResponse);
+  rpc PrepareTrainedArtifact(PrepareTrainedArtifactRequest) returns (PrepareTrainedArtifactResponse);
+  rpc CompleteTrainedArtifact(CompleteTrainedArtifactRequest) returns (CompleteTrainedArtifactResponse);
+  rpc AbortTrainedArtifact(AbortTrainedArtifactRequest) returns (AbortTrainedArtifactResponse);
+  // Read-only source/target preflight. It neither reserves a name nor starts an import.
+  rpc ResolveFinetuningFacts(ResolveFinetuningFactsRequest) returns (ResolveFinetuningFactsResponse);
+  // Observe the original registration after a lost write response. A miss is
+  // a point-in-time observation and never proof that a request was not sent.
+  rpc GetTrainedArtifactRegistration(GetTrainedArtifactRegistrationRequest) returns (GetTrainedArtifactRegistrationResponse);
+  // Issue a short ticket for the existing session's original path only.
+  rpc GetTrainedArtifactUploadURL(GetTrainedArtifactUploadURLRequest) returns (GetTrainedArtifactUploadURLResponse);
+}
+
+message GetTrainedArtifactRegistrationRequest {
+  string tenant_id = 1;
+  string idempotency_key = 2;
+  string expected_execution_id = 3;
+  bool verify_uploaded_object = 4;
+}
+
+message TrainedArtifactRegistration {
+  string registration_id = 1;
+  string idempotency_key = 2;
+  string execution_id = 3;
+  string target_model_id = 4;
+  string model_name = 5;
+  string display_name = 6;
+  string description = 7;
+  repeated string capabilities = 8;
+  string source_model_version_id = 9;
+  string version = 10;
+  string file_name = 11;
+  string format = 12;
+  int64 size_bytes = 13;
+  string checksum_sha256 = 14;
+  string storage_path = 15;
+  string status = 16;
+  string model_id = 17;
+  string model_version_id = 18;
+  string engine_type = 19;
+  string engine_image = 20;
+  string startup_command = 21;
+  string request_fingerprint = 22;
+  string error_message = 23;
+}
+
+message TrainedArtifactObjectObservation {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_NOT_REQUESTED = 1;
+    STATE_MISSING = 2;
+    STATE_VERIFIED = 3;
+    STATE_MISMATCH = 4;
+    STATE_UNAVAILABLE = 5;
+  }
+  State state = 1;
+  int64 size_bytes = 2;
+  string sha256 = 3;
+}
+
+message GetTrainedArtifactRegistrationResponse {
+  TrainedArtifactRegistration registration = 1;
+  TrainedArtifactObjectObservation uploaded_object = 2;
+}
+
+message GetTrainedArtifactUploadURLRequest {
+  string tenant_id = 1;
+  string registration_id = 2;
+  string idempotency_key = 3;
+  string expected_execution_id = 4;
+  string expected_storage_path = 5;
+}
+
+message GetTrainedArtifactUploadURLResponse {
+  string registration_id = 1;
+  string storage_path = 2;
+  string upload_url = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  map<string,string> upload_headers = 5;
+}
+
+message ResolveFinetuningFactsRequest {
+  string tenant_id = 1;
+  string base_model_version_id = 2;
+  oneof target { string target_model_id = 3; string new_model_name = 4; }
+}
+
+message FinetuningArtifactFile {
+  string path = 1;
+  int64 size_bytes = 2;
+  string sha256 = 3;
+}
+
+message ResolveFinetuningFactsResponse {
+  string tenant_id = 1;
+  string model_id = 2;
+  string model_version_id = 3;
+  string format = 4;
+  string bucket = 5;
+  string object_key = 6;
+  string object_version_id = 7;
+  int64 size_bytes = 8;
+  string sha256 = 9;
+  repeated FinetuningArtifactFile files = 10;
+  // Exact members from the verified archive, each limited to 1 MiB.
+  bytes config_json = 11;
+  bytes tokenizer_config_json = 12;
+  oneof target { string target_model_id = 13; string new_model_name = 14; }
+  // Identifies the provider verification algorithm, never an approval assertion.
+  string verification_source = 15;
 }
 
 message Model {
@@ -155,6 +265,9 @@ message ListModelVersionsRequest {
   reserved 3;
   optional int32 page = 4;
   optional int32 page_size = 5 [json_name = "pageSize"];
+  // Canonical states: pending, importing, ready, error. UI aliases downloading
+  // and failed are accepted as importing and error respectively.
+  string status = 6;
 }
 message ListModelVersionsResponse {
   reserved 1, 2;
@@ -197,6 +310,58 @@ message GetUploadURLResponse {
   map<string, string> upload_headers = 5;
   string model_version_id = 6;
 }
+
+message PrepareTrainedArtifactRequest {
+  string tenant_id = 1;
+  string target_model_id = 2;
+  string model_name = 3;
+  string display_name = 4;
+  string description = 5;
+  repeated string capabilities = 6;
+  string source_model_version_id = 7;
+  string version = 8;
+  string file_name = 9;
+  string format = 10;
+  int64 size_bytes = 11;
+  string checksum_sha256 = 12;
+  string execution_id = 13;
+  string idempotency_key = 14;
+  string engine_type = 15;
+  string engine_image = 16;
+  string startup_command = 17;
+}
+
+message PrepareTrainedArtifactResponse {
+  string registration_id = 1;
+  string upload_url = 2;
+  string storage_path = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  map<string, string> upload_headers = 5;
+}
+
+message CompleteTrainedArtifactRequest {
+  string tenant_id = 1;
+  string registration_id = 2;
+  string idempotency_key = 3;
+}
+
+message CompleteTrainedArtifactResponse {
+  string registration_id = 1;
+  string model_id = 2;
+  string model_version_id = 3;
+  string model_version_status = 4;
+  string storage_path = 5;
+  int64 size_bytes = 6;
+  string checksum_sha256 = 7;
+}
+
+message AbortTrainedArtifactRequest {
+  string tenant_id = 1;
+  string registration_id = 2;
+  string reason = 3;
+}
+
+message AbortTrainedArtifactResponse {}
 
 message ImportModelRequest {
   string tenant_id = 1;
@@ -296,4 +461,32 @@ message GetModelDownloadURLResponse {
   string encrypt_algo = 4;
   string encrypt_hint = 5;
   google.protobuf.Timestamp expires_at = 6;
+}
+
+// Tenant-scoped, newest-first operation history for one model.
+message ListModelOperationsRequest {
+  string tenant_id = 1;
+  string model_id = 2;
+  optional int32 page = 3;
+  optional int32 page_size = 4 [json_name = "pageSize"];
+}
+message ListModelOperationsResponse {
+  repeated ModelOperation items = 1;
+  int64 total = 2;
+}
+message ModelOperation {
+  string id = 1;
+  string model_id = 2;
+  string model_version_id = 3;
+  string action = 4;
+  string actor = 5;
+  // succeeded / failed / accepted. Accepted means asynchronous work was queued;
+  // it does not mean that the model import has completed successfully.
+  string result = 6;
+  string before_state = 7;
+  string after_state = 8;
+  string error_class = 9;
+  string request_id = 10;
+  google.protobuf.Timestamp created_at = 11;
+  string task_id = 12;
 }

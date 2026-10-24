@@ -1,0 +1,37 @@
+CREATE TABLE public.trained_artifact_registrations (
+    tenant_id UUID NOT NULL,
+    id UUID NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL,
+    execution_id TEXT NOT NULL DEFAULT '',
+    target_model_id UUID,
+    model_name TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    capabilities JSONB NOT NULL DEFAULT '[]'::jsonb,
+    source_model_version_id UUID,
+    version TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    format TEXT NOT NULL CHECK (format IN ('safetensors','gguf','pytorch')),
+    storage_path TEXT NOT NULL,
+    size_bytes BIGINT NOT NULL CHECK (size_bytes > 0),
+    checksum_sha256 TEXT NOT NULL CHECK (checksum_sha256 ~ '^[a-fA-F0-9]{64}$'),
+    engine_type TEXT NOT NULL,
+    engine_image TEXT NOT NULL,
+    startup_command TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending','uploaded','ready','failed','aborted')),
+    error_message TEXT NOT NULL DEFAULT '',
+    model_id UUID,
+    model_version_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY (tenant_id, id),
+    UNIQUE (tenant_id, idempotency_key),
+    FOREIGN KEY (tenant_id, target_model_id) REFERENCES public.models(tenant_id, id),
+    FOREIGN KEY (tenant_id, source_model_version_id) REFERENCES public.model_versions(tenant_id, id),
+    FOREIGN KEY (tenant_id, model_id) REFERENCES public.models(tenant_id, id),
+    FOREIGN KEY (tenant_id, model_version_id) REFERENCES public.model_versions(tenant_id, id)
+);
+
+CREATE INDEX trained_artifact_registration_status_idx
+    ON public.trained_artifact_registrations (tenant_id, status, updated_at);

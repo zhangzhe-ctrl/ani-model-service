@@ -123,21 +123,42 @@ func (q *Queries) CompleteImportTask(ctx context.Context, arg CompleteImportTask
 	return result.RowsAffected(), nil
 }
 
+const countModelOperations = `-- name: CountModelOperations :one
+SELECT count(*) FROM public.audit_events e
+LEFT JOIN public.model_import_tasks t ON t.tenant_id = e.tenant_id AND t.id = e.task_id
+WHERE e.tenant_id = $1
+  AND COALESCE(e.model_id, t.model_id) = $2::uuid
+`
+
+type CountModelOperationsParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	ModelID  pgtype.UUID `json:"model_id"`
+}
+
+func (q *Queries) CountModelOperations(ctx context.Context, arg CountModelOperationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countModelOperations, arg.TenantID, arg.ModelID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countModelVersions = `-- name: CountModelVersions :one
 SELECT count(*)
 FROM public.model_versions v
 JOIN public.models m ON m.tenant_id = v.tenant_id AND m.id = v.model_id
 WHERE v.tenant_id = $1 AND v.model_id = $2
   AND v.status <> 'deleted' AND m.status <> 'deleted'
+  AND ($3::text = '' OR v.status = $3::text)
 `
 
 type CountModelVersionsParams struct {
 	TenantID pgtype.UUID `json:"tenant_id"`
 	ModelID  pgtype.UUID `json:"model_id"`
+	Status   string      `json:"status"`
 }
 
 func (q *Queries) CountModelVersions(ctx context.Context, arg CountModelVersionsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countModelVersions, arg.TenantID, arg.ModelID)
+	row := q.db.QueryRow(ctx, countModelVersions, arg.TenantID, arg.ModelID, arg.Status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1390,22 +1411,24 @@ func (q *Queries) GetReadyModelVersionByExternalRef(ctx context.Context, arg Get
 const insertAuditEvent = `-- name: InsertAuditEvent :exec
 INSERT INTO public.audit_events
  (tenant_id, id, actor, workload, request_id, task_id, action,
-  before_state, after_state, error_class)
+  before_state, after_state, error_class, model_id, model_version_id)
 VALUES ($1, $2, $3, $4, $5, NULLIF($6, '00000000-0000-0000-0000-000000000000')::uuid,
-        $7, $8, $9, $10)
+        $7, $8, $9, $10, $11::uuid, $12::uuid)
 `
 
 type InsertAuditEventParams struct {
-	TenantID    pgtype.UUID `json:"tenant_id"`
-	ID          pgtype.UUID `json:"id"`
-	Actor       string      `json:"actor"`
-	Workload    string      `json:"workload"`
-	RequestID   string      `json:"request_id"`
-	Column6     interface{} `json:"column_6"`
-	Action      string      `json:"action"`
-	BeforeState string      `json:"before_state"`
-	AfterState  string      `json:"after_state"`
-	ErrorClass  string      `json:"error_class"`
+	TenantID       pgtype.UUID `json:"tenant_id"`
+	ID             pgtype.UUID `json:"id"`
+	Actor          string      `json:"actor"`
+	Workload       string      `json:"workload"`
+	RequestID      string      `json:"request_id"`
+	Column6        interface{} `json:"column_6"`
+	Action         string      `json:"action"`
+	BeforeState    string      `json:"before_state"`
+	AfterState     string      `json:"after_state"`
+	ErrorClass     string      `json:"error_class"`
+	ModelID        pgtype.UUID `json:"model_id"`
+	ModelVersionID pgtype.UUID `json:"model_version_id"`
 }
 
 func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error {
@@ -1420,6 +1443,8 @@ func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventPara
 		arg.BeforeState,
 		arg.AfterState,
 		arg.ErrorClass,
+		arg.ModelID,
+		arg.ModelVersionID,
 	)
 	return err
 }
@@ -1670,6 +1695,83 @@ func (q *Queries) ListDueImportTasksAll(ctx context.Context, limit int32) ([]Lis
 	return items, nil
 }
 
+const listModelOperations = `-- name: ListModelOperations :many
+SELECT e.tenant_id, e.id, e.actor, e.workload, e.request_id, e.task_id, e.action, e.before_state, e.after_state, e.error_class, e.created_at, e.model_id, e.model_version_id, COALESCE(e.model_id, t.model_id) AS resolved_model_id,
+       COALESCE(e.model_version_id, t.model_version_id) AS resolved_model_version_id
+FROM public.audit_events e
+LEFT JOIN public.model_import_tasks t ON t.tenant_id = e.tenant_id AND t.id = e.task_id
+WHERE e.tenant_id = $1
+  AND COALESCE(e.model_id, t.model_id) = $2::uuid
+ORDER BY e.created_at DESC, e.id DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListModelOperationsParams struct {
+	TenantID   pgtype.UUID `json:"tenant_id"`
+	ModelID    pgtype.UUID `json:"model_id"`
+	PageOffset int32       `json:"page_offset"`
+	PageLimit  int32       `json:"page_limit"`
+}
+
+type ListModelOperationsRow struct {
+	TenantID               pgtype.UUID        `json:"tenant_id"`
+	ID                     pgtype.UUID        `json:"id"`
+	Actor                  string             `json:"actor"`
+	Workload               string             `json:"workload"`
+	RequestID              string             `json:"request_id"`
+	TaskID                 pgtype.UUID        `json:"task_id"`
+	Action                 string             `json:"action"`
+	BeforeState            string             `json:"before_state"`
+	AfterState             string             `json:"after_state"`
+	ErrorClass             string             `json:"error_class"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	ModelID                pgtype.UUID        `json:"model_id"`
+	ModelVersionID         pgtype.UUID        `json:"model_version_id"`
+	ResolvedModelID        pgtype.UUID        `json:"resolved_model_id"`
+	ResolvedModelVersionID pgtype.UUID        `json:"resolved_model_version_id"`
+}
+
+func (q *Queries) ListModelOperations(ctx context.Context, arg ListModelOperationsParams) ([]ListModelOperationsRow, error) {
+	rows, err := q.db.Query(ctx, listModelOperations,
+		arg.TenantID,
+		arg.ModelID,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListModelOperationsRow{}
+	for rows.Next() {
+		var i ListModelOperationsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.Actor,
+			&i.Workload,
+			&i.RequestID,
+			&i.TaskID,
+			&i.Action,
+			&i.BeforeState,
+			&i.AfterState,
+			&i.ErrorClass,
+			&i.CreatedAt,
+			&i.ModelID,
+			&i.ModelVersionID,
+			&i.ResolvedModelID,
+			&i.ResolvedModelVersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listModelVersions = `-- name: ListModelVersions :many
 SELECT v.tenant_id, v.id, v.model_id, v.version, v.format, v.status, v.is_encrypted, v.encrypt_algo,
        v.encrypt_hint, v.size_bytes, v.checksum_sha256, v.engine_type, v.startup_command,
@@ -1681,16 +1783,18 @@ FROM public.model_versions v
 JOIN public.models m ON m.tenant_id = v.tenant_id AND m.id = v.model_id
 LEFT JOIN public.model_artifacts a ON a.tenant_id = v.tenant_id AND a.model_version_id = v.id
 WHERE v.tenant_id = $1 AND v.model_id = $2 AND v.status <> 'deleted' AND m.status <> 'deleted'
-  AND ($3::timestamptz IS NULL
-       OR (v.created_at, v.id) < ($3::timestamptz, $4::uuid))
+  AND ($3::text = '' OR v.status = $3::text)
+  AND ($4::timestamptz IS NULL
+       OR (v.created_at, v.id) < ($4::timestamptz, $5::uuid))
 ORDER BY v.created_at DESC, v.id DESC
-LIMIT $6
-OFFSET $5
+LIMIT $7
+OFFSET $6
 `
 
 type ListModelVersionsParams struct {
 	TenantID        pgtype.UUID        `json:"tenant_id"`
 	ModelID         pgtype.UUID        `json:"model_id"`
+	Status          string             `json:"status"`
 	BeforeCreatedAt pgtype.Timestamptz `json:"before_created_at"`
 	BeforeID        pgtype.UUID        `json:"before_id"`
 	PageOffset      int32              `json:"page_offset"`
@@ -1725,6 +1829,7 @@ func (q *Queries) ListModelVersions(ctx context.Context, arg ListModelVersionsPa
 	rows, err := q.db.Query(ctx, listModelVersions,
 		arg.TenantID,
 		arg.ModelID,
+		arg.Status,
 		arg.BeforeCreatedAt,
 		arg.BeforeID,
 		arg.PageOffset,

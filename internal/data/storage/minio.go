@@ -199,6 +199,39 @@ func (a *MinIOAdapter) VerifyChecksum(ctx context.Context, tenant, objectRef, ex
 	return nil
 }
 
+func (a *MinIOAdapter) VerifyObject(ctx context.Context, tenant, objectRef string, expectedSize int64, expected string) (bizstorage.ObjectVerification, error) {
+	key, err := tenantKey(tenant, objectRef)
+	if err != nil {
+		return bizstorage.ObjectVerification{}, err
+	}
+	if expectedSize <= 0 || len(expected) != sha256.Size*2 {
+		return bizstorage.ObjectVerification{}, bizstorage.ErrChecksumMismatch
+	}
+	bucket, err := a.bucketForTenant(tenant)
+	if err != nil {
+		return bizstorage.ObjectVerification{}, err
+	}
+	stat, err := a.client.StatObject(ctx, bucket, key, minio.StatObjectOptions{})
+	if err != nil {
+		return bizstorage.ObjectVerification{}, providerError(err)
+	}
+	obj, err := a.client.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return bizstorage.ObjectVerification{}, providerError(err)
+	}
+	defer obj.Close()
+	verification, err := bizstorage.VerifyReaderWithSize(obj, expectedSize, expected)
+	if err != nil {
+		return bizstorage.ObjectVerification{}, providerError(err)
+	}
+	// StatObject catches metadata-level size changes before the streaming read;
+	// the streamed count remains authoritative for the bytes actually verified.
+	if stat.Size != verification.SizeBytes {
+		verification.Matches = false
+	}
+	return verification, nil
+}
+
 func (a *MinIOAdapter) CreateDownloadURL(ctx context.Context, in bizstorage.DownloadRequest) (bizstorage.SignedURL, error) {
 	key, err := tenantKey(in.TenantID, in.ObjectRef)
 	if err != nil {

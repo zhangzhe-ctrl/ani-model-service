@@ -525,7 +525,7 @@ const file_storage_v1_storage_proto_rawDesc = "" +
 	"\x0fCreateUploadURL\x12\".storage.v1.CreateUploadURLRequest\x1a#.storage.v1.CreateUploadURLResponse\x12Q\n" +
 	"\fObjectExists\x12\x1f.storage.v1.ObjectExistsRequest\x1a .storage.v1.ObjectExistsResponse\x12W\n" +
 	"\x0eVerifyChecksum\x12!.storage.v1.VerifyChecksumRequest\x1a\".storage.v1.VerifyChecksumResponse\x12`\n" +
-	"\x11CreateDownloadURL\x12$.storage.v1.CreateDownloadURLRequest\x1a%.storage.v1.CreateDownloadURLResponseBCZAgithub.com/liangzai006/ani-model-service/api/storage/v1;storagev1b\x06proto3"
+	"\x11CreateDownloadURL\x12$.storage.v1.CreateDownloadURLRequest\x1a%.storage.v1.CreateDownloadURLResponseBEZCgithub.com/zhangzhe-ctrl/ani-model-service/api/storage/v1;storagev1b\x06proto3"
 
 var (
 	file_storage_v1_storage_proto_rawDescOnce sync.Once

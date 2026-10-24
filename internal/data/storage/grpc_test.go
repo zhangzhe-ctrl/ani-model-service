@@ -2,12 +2,16 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
-	storagev1 "github.com/liangzai006/ani-model-service/api/storage/v1"
 	bizstorage "github.com/liangzai006/ani-model-service/internal/biz/storage"
+	storagev1 "github.com/zhangzhe-ctrl/ani-model-service/api/storage/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -28,6 +32,15 @@ type storageExpiredURLServer struct{ storageServerFake }
 
 func (storageExpiredURLServer) CreateDownloadURL(context.Context, *storagev1.CreateDownloadURLRequest) (*storagev1.CreateDownloadURLResponse, error) {
 	return &storagev1.CreateDownloadURLResponse{Url: "grpc://expired", ExpiresAt: timestamppb.New(time.Now().Add(-time.Minute))}, nil
+}
+
+type storageDownloadURLServer struct {
+	storageServerFake
+	url string
+}
+
+func (s storageDownloadURLServer) CreateDownloadURL(context.Context, *storagev1.CreateDownloadURLRequest) (*storagev1.CreateDownloadURLResponse, error) {
+	return &storagev1.CreateDownloadURLResponse{Url: s.url, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}, nil
 }
 
 func (storageServerFake) CreateUploadURL(context.Context, *storagev1.CreateUploadURLRequest) (*storagev1.CreateUploadURLResponse, error) {
@@ -105,5 +118,33 @@ func TestGRPCAdapterReturnsExpiryForCallerValidation(t *testing.T) {
 	}
 	if err := bizstorage.ValidateSignedURL(u, time.Now()); err != bizstorage.ErrURLExpired {
 		t.Fatalf("expiry validation error = %v, want ErrURLExpired", err)
+	}
+}
+
+func TestGRPCAdapterVerifiesDownloadedObjectSizeAndDigest(t *testing.T) {
+	body := []byte("model")
+	hash := sha256.Sum256(body)
+	download := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	defer download.Close()
+	listener := bufconn.Listen(1024 * 1024)
+	server := grpc.NewServer()
+	storagev1.RegisterStorageServiceServer(server, storageDownloadURLServer{url: download.URL})
+	go func() { _ = server.Serve(listener) }()
+	defer server.Stop()
+	conn, err := grpc.NewClient("passthrough:///bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	adapter := NewGRPCAdapter(conn)
+	verification, err := adapter.VerifyObject(context.Background(), "tenant", "obj", int64(len(body)), fmt.Sprintf("%x", hash[:]))
+	if err != nil || !verification.Matches || verification.SizeBytes != int64(len(body)) {
+		t.Fatalf("verification=%+v err=%v", verification, err)
+	}
+	verification, err = adapter.VerifyObject(context.Background(), "tenant", "obj", int64(len(body)+1), fmt.Sprintf("%x", hash[:]))
+	if err != nil || verification.Matches {
+		t.Fatalf("size mismatch verification=%+v err=%v", verification, err)
 	}
 }

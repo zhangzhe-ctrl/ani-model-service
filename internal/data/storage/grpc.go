@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	storagev1 "github.com/liangzai006/ani-model-service/api/storage/v1"
 	bizstorage "github.com/liangzai006/ani-model-service/internal/biz/storage"
+	storagev1 "github.com/zhangzhe-ctrl/ani-model-service/api/storage/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -93,6 +93,37 @@ func (a *GRPCAdapter) VerifyChecksum(ctx context.Context, tenant, objectRef, che
 		return bizstorage.ErrChecksumMismatch
 	}
 	return nil
+}
+
+func (a *GRPCAdapter) VerifyObject(ctx context.Context, tenant, objectRef string, expectedSize int64, expected string) (bizstorage.ObjectVerification, error) {
+	u, err := a.CreateDownloadURL(ctx, bizstorage.DownloadRequest{TenantID: tenant, ObjectRef: objectRef, Requester: "model-registration", TTL: 10 * time.Minute})
+	if err != nil {
+		return bizstorage.ObjectVerification{}, err
+	}
+	if err := bizstorage.ValidateSignedURL(u, time.Now()); err != nil {
+		return bizstorage.ObjectVerification{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.URL, nil)
+	if err != nil {
+		return bizstorage.ObjectVerification{}, fmt.Errorf("create storage download request: %w", err)
+	}
+	client := a.http
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return bizstorage.ObjectVerification{}, providerError(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return bizstorage.ObjectVerification{}, fmt.Errorf("%w: download returned status %d", bizstorage.ErrProvider, resp.StatusCode)
+	}
+	verification, err := bizstorage.VerifyReaderWithSize(resp.Body, expectedSize, expected)
+	if err != nil {
+		return bizstorage.ObjectVerification{}, providerError(err)
+	}
+	return verification, nil
 }
 
 func (a *GRPCAdapter) CreateDownloadURL(ctx context.Context, in bizstorage.DownloadRequest) (bizstorage.SignedURL, error) {

@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/data/postgres"
 	"github.com/liangzai006/ani-model-service/internal/identity"
 	"github.com/liangzai006/ani-model-service/internal/service"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 // Test fixtures are isolated by fresh tenants and rolled back, including on
@@ -67,6 +67,10 @@ func TestCatalogPaginationPostgres(t *testing.T) {
 		exec(`INSERT INTO public.model_versions (tenant_id,id,model_id,version,format,status,size_bytes,checksum_sha256,is_encrypted,encrypt_algo,encrypt_hint,created_at,updated_at)
 		 VALUES ($1,$2,$3,$4,'safetensors',$5,123,$6,true,'AES-256','key-a',$7,$7)`, tenant, id(10+n), id(3), fmt.Sprintf("v%d", n+1), state, strings.Repeat("a", 64), created)
 	}
+	// Keep three visible versions as well as the deleted row: pagination totals
+	// count visible entries, and the earlier version belongs on the third page.
+	exec(`INSERT INTO public.model_versions (tenant_id,id,model_id,version,format,status,size_bytes,checksum_sha256,created_at,updated_at)
+	 VALUES ($1,$2,$3,'v0','safetensors','pending',123,$4,$5,$5)`, tenant, id(9), id(3), strings.Repeat("a", 64), created.Add(-time.Second))
 	exec(`INSERT INTO public.model_artifacts (tenant_id,id,model_version_id,provider,reference,format,size_bytes,sha256)
 	 VALUES ($1,$2,$3,'s3','tenant/model/v1/model.tar','safetensors',123,$4)`, tenant, uuid.NewString(), id(10), strings.Repeat("a", 64))
 	catalog := postgres.NewCatalogStore(postgres.NewModelStore(tx))
@@ -143,6 +147,16 @@ func TestCatalogPaginationPostgres(t *testing.T) {
 	ready, err := server.GetModelVersion(principal(tenant), &modelv1.GetModelVersionRequest{ModelVersionId: id(10)})
 	if err != nil || ready.GetVersion().GetSizeBytes() != 123 || !ready.GetVersion().GetIsEncrypted() || !ready.GetVersion().GetCreatedAt().AsTime().Equal(created) {
 		t.Fatalf("ready metadata=%v err=%v", ready, err)
+	}
+	versionRequest.Page = int32ptr(3)
+	page, err = server.ListModelVersions(principal(tenant), versionRequest)
+	if err != nil || len(page.GetItems()) != 1 || page.Items[0].Version != "v0" || page.GetTotal() != 3 {
+		t.Fatalf("versions third page=%v err=%v", page, err)
+	}
+	versionRequest.Page = int32ptr(4)
+	page, err = server.ListModelVersions(principal(tenant), versionRequest)
+	if err != nil || len(page.GetItems()) != 0 || page.GetTotal() != 3 {
+		t.Fatalf("deleted version appeared after visible pages: %v err=%v", page, err)
 	}
 	detail, err := server.GetModel(principal(tenant), &modelv1.GetModelRequest{ModelId: "smol-3"})
 	if err != nil || len(detail.GetVersions()) != 1 || detail.Versions[0].Version != "v2" {

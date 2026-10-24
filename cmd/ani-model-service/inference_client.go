@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	inferencev1 "github.com/liangzai006/ani-model-service/api/inference/v1"
+	inferencev1 "github.com/liangzai006/ani-inference-service/api/inference/v1"
 	modelbiz "github.com/liangzai006/ani-model-service/internal/biz/model"
 	inferencedata "github.com/liangzai006/ani-model-service/internal/data/inference"
 	"google.golang.org/grpc"

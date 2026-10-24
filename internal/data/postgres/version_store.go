@@ -104,7 +104,7 @@ func (s *VersionStore) ListVersions(ctx context.Context, tenant, model string, o
 	if err != nil {
 		return nil, err
 	}
-	rs, err := New(s.pool).ListModelVersions(ctx, ListModelVersionsParams{TenantID: uuidType(t), ModelID: uuidType(mid), PageOffset: int32(options.Offset), PageLimit: options.Limit, BeforeCreatedAt: beforeTime, BeforeID: beforeID})
+	rs, err := New(s.pool).ListModelVersions(ctx, ListModelVersionsParams{Status: options.Status, TenantID: uuidType(t), ModelID: uuidType(mid), PageOffset: int32(options.Offset), PageLimit: options.Limit, BeforeCreatedAt: beforeTime, BeforeID: beforeID})
 	if err != nil {
 		return nil, err
 	}
@@ -118,12 +118,12 @@ func (s *VersionStore) ListVersions(ctx context.Context, tenant, model string, o
 	return out, nil
 }
 
-func (s *VersionStore) CountModelVersions(ctx context.Context, tenant, model string) (int64, error) {
+func (s *VersionStore) CountModelVersions(ctx context.Context, tenant, model string, options modelbiz.ListOptions) (int64, error) {
 	t, mid, err := parseModelIDs(tenant, model)
 	if err != nil {
 		return 0, err
 	}
-	return New(s.pool).CountModelVersions(ctx, CountModelVersionsParams{TenantID: uuidType(t), ModelID: uuidType(mid)})
+	return New(s.pool).CountModelVersions(ctx, CountModelVersionsParams{Status: options.Status, TenantID: uuidType(t), ModelID: uuidType(mid)})
 }
 
 func (s *VersionStore) ListVersionsPage(ctx context.Context, tenant, model string, options modelbiz.ListOptions) ([]modelbiz.Version, int64, error) {
@@ -132,7 +132,7 @@ func (s *VersionStore) ListVersionsPage(ctx context.Context, tenant, model strin
 		return []modelbiz.Version{}, 0, err
 	}
 	read := func(q *Queries) ([]modelbiz.Version, int64, error) {
-		count, err := q.CountModelVersions(ctx, CountModelVersionsParams{TenantID: uuidType(t), ModelID: uuidType(mid)})
+		count, err := q.CountModelVersions(ctx, CountModelVersionsParams{Status: options.Status, TenantID: uuidType(t), ModelID: uuidType(mid)})
 		if err != nil {
 			return nil, 0, err
 		}
@@ -140,7 +140,7 @@ func (s *VersionStore) ListVersionsPage(ctx context.Context, tenant, model strin
 		if err != nil {
 			return nil, 0, err
 		}
-		rs, err := q.ListModelVersions(ctx, ListModelVersionsParams{TenantID: uuidType(t), ModelID: uuidType(mid), PageOffset: int32(options.Offset), PageLimit: options.Limit, BeforeCreatedAt: beforeTime, BeforeID: beforeID})
+		rs, err := q.ListModelVersions(ctx, ListModelVersionsParams{Status: options.Status, TenantID: uuidType(t), ModelID: uuidType(mid), PageOffset: int32(options.Offset), PageLimit: options.Limit, BeforeCreatedAt: beforeTime, BeforeID: beforeID})
 		if err != nil {
 			return nil, 0, err
 		}

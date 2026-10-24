@@ -55,6 +55,34 @@ func TestBuildImportJob(t *testing.T) {
 	}
 }
 
+func TestBuildImportJobMakesStagingWritableByNonRootImporter(t *testing.T) {
+	job, err := BuildImportJob(ImportJobSpec{
+		Namespace: "ani-model",
+		Name:      "import-nonroot-staging",
+		Image:     "registry.example/model-importer:nonroot",
+		Volumes: []corev1.Volume{{Name: "staging", VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "import-stage"},
+		}}},
+		VolumeMounts: []corev1.VolumeMount{{Name: "staging", MountPath: "/staging"}},
+	})
+	if err != nil {
+		t.Fatalf("BuildImportJob() error = %v", err)
+	}
+	security := job.Spec.Template.Spec.SecurityContext
+	if security == nil || security.FSGroup == nil || *security.FSGroup != 65532 {
+		t.Fatalf("import staging group = %#v, want fsGroup 65532 for the nonroot importer", security)
+	}
+	if security.RunAsNonRoot == nil || !*security.RunAsNonRoot {
+		t.Fatalf("import worker must remain nonroot: %#v", security)
+	}
+	if security.FSGroupChangePolicy == nil || *security.FSGroupChangePolicy != corev1.FSGroupChangeOnRootMismatch {
+		t.Fatalf("staging ownership policy = %#v, want OnRootMismatch", security.FSGroupChangePolicy)
+	}
+	if got := job.Spec.Template.Spec.Containers[0].VolumeMounts[0]; got.Name != "staging" || got.MountPath != "/staging" || got.ReadOnly {
+		t.Fatalf("staging PVC mount changed: %#v", got)
+	}
+}
+
 func TestImportJobNameUsesTaskAndAttempt(t *testing.T) {
 	if got, want := ImportJobName("11111111-1111-1111-1111-111111111111", 3), "ani-import-11111111111111111111111111111111-a3"; got != want {
 		t.Fatalf("ImportJobName() = %q, want %q", got, want)

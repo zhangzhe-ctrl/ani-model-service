@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Test unpublished Model API changes without altering the runtime's pinned
+# dependencies. The temporary modfile is only used by this compatibility gate.
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+export GOWORK=off
+export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=panic
+GO=${GO:-go}
+repository_root=$PWD
+temporary_root=$(mktemp -d "${TMPDIR:-/tmp}/ani-api-compatibility.XXXXXX")
+trap 'rm -rf -- "$temporary_root"' EXIT
+
+cp go.mod "$temporary_root/go.mod"
+cp go.sum "$temporary_root/go.sum"
+modfile=$temporary_root/go.mod
+"$GO" mod edit -modfile="$modfile" \
+  -replace="github.com/zhangzhe-ctrl/ani-model-service/api=$repository_root/api"
+
+# Load every local API package together with the canonical Inference contract.
+# Merely testing packages separately misses protobuf registration collisions.
+"$GO" list -mod=readonly -modfile="$modfile" \
+  github.com/zhangzhe-ctrl/ani-model-service/api/... \
+  github.com/liangzai006/ani-inference-service/api/inference/v1 \
+  >"$temporary_root/packages"
+{
+  printf 'package main\n\nimport (\n'
+  while IFS= read -r package; do
+    printf '\t_ "%s"\n' "$package"
+  done <"$temporary_root/packages"
+  printf ')\n\nfunc main() {}\n'
+} >"$temporary_root/contracts.go"
+"$GO" run -mod=readonly -modfile="$modfile" "$temporary_root/contracts.go"
+
+# Exercise the service against local API changes as well as the published API
+# tested by make verify. Dependency changes must be explicit, never auto-tidied.
+# Process-level tests invoke `go build` themselves. Propagate the same isolated
+# module graph to those subprocesses so they do not silently use the old API.
+GOFLAGS="${GOFLAGS:+$GOFLAGS }-mod=readonly -modfile=$modfile" "$GO" test -count=1 ./...

@@ -53,7 +53,11 @@ func TestBootstrapValidate(t *testing.T) {
 		{name: "missing grpc timeout", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = nil }},
 		{name: "zero grpc timeout", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = durationpb.New(0) }},
 		{name: "negative admin timeout", mutate: func(c *Bootstrap) { c.Server.Admin.Timeout = durationpb.New(-time.Second) }},
-		{name: "grpc timeout above maximum", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = durationpb.New(31 * time.Second) }},
+		{name: "original grpc timeout", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = durationpb.New(30 * time.Second) }, ok: true},
+		{name: "one hour model facts budget", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = durationpb.New(3600 * time.Second) }, ok: true},
+		{name: "finite grpc maximum", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = durationpb.New(24 * time.Hour) }, ok: true},
+		{name: "grpc timeout above maximum", mutate: func(c *Bootstrap) { c.Server.Grpc.Timeout = durationpb.New(24*time.Hour + time.Nanosecond) }},
+		{name: "admin timeout above unchanged maximum", mutate: func(c *Bootstrap) { c.Server.Admin.Timeout = durationpb.New(31 * time.Second) }},
 		{name: "invalid protobuf timeout", mutate: func(c *Bootstrap) {
 			c.Server.Grpc.Timeout = &durationpb.Duration{Nanos: 1_000_000_000}
 		}},

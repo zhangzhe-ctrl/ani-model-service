@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	inferencev1 "github.com/liangzai006/ani-model-service/api/inference/v1"
+	inferencev1 "github.com/liangzai006/ani-inference-service/api/inference/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"

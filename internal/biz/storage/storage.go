@@ -32,6 +32,20 @@ type SignedURL struct {
 	ExpiresAt time.Time
 }
 
+type ObjectVerification struct {
+	SizeBytes int64
+	SHA256    string
+	Matches   bool
+}
+
+// ObjectVerifier validates both the bytes and digest of an immutable object.
+// It is separate from Port so existing import workers remain compatible with
+// older Storage implementations while trained-artifact registration requires
+// the stronger check.
+type ObjectVerifier interface {
+	VerifyObject(context.Context, string, string, int64, string) (ObjectVerification, error)
+}
+
 // Port is the boundary to an external object storage service. Implementations
 // must not create buckets or manage storage infrastructure lifecycle.
 type Port interface {
@@ -63,6 +77,16 @@ func VerifyReader(r io.Reader, expected string) error {
 		return ErrChecksumMismatch
 	}
 	return nil
+}
+
+func VerifyReaderWithSize(r io.Reader, expectedSize int64, expected string) (ObjectVerification, error) {
+	h := sha256.New()
+	size, err := io.Copy(h, r)
+	if err != nil {
+		return ObjectVerification{}, err
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	return ObjectVerification{SizeBytes: size, SHA256: actual, Matches: size == expectedSize && strings.EqualFold(actual, expected)}, nil
 }
 
 func ValidateSignedURL(u SignedURL, now time.Time) error {

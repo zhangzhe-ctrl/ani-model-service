@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	inferencev1 "github.com/liangzai006/ani-model-service/api/inference/v1"
+	inferencev1 "github.com/liangzai006/ani-inference-service/api/inference/v1"
 	"google.golang.org/grpc/metadata"
 )
 

@@ -15,6 +15,9 @@ spec:
     - digital signature
     - key encipherment
     - server auth
+  # The server loads this key pair once at startup and never reloads it.
+  duration: {{ .Values.tls.certificate.duration }}
+  renewBefore: {{ .Values.tls.certificate.renewBefore }}
   issuerRef:
     name: {{ required "tls.certificate.issuer.name is required" (trim .Values.tls.certificate.issuer.name) }}
     kind: {{ required "tls.certificate.issuer.kind is required" .Values.tls.certificate.issuer.kind }}

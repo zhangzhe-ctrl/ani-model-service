@@ -9,13 +9,13 @@ import (
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	auditbiz "github.com/liangzai006/ani-model-service/internal/biz/audit"
 	"github.com/liangzai006/ani-model-service/internal/biz/model"
 	"github.com/liangzai006/ani-model-service/internal/biz/storage"
 	workbiz "github.com/liangzai006/ani-model-service/internal/biz/work"
 	"github.com/liangzai006/ani-model-service/internal/data/importer"
 	"github.com/liangzai006/ani-model-service/internal/identity"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 type catalogFake struct {
@@ -307,7 +307,7 @@ func (f *versionCatalogFake) CreateVersion(_ context.Context, v model.Version) (
 func (f *versionCatalogFake) ListVersions(context.Context, string, string, model.ListOptions) ([]model.Version, error) {
 	return nil, nil
 }
-func (f *versionCatalogFake) CountModelVersions(context.Context, string, string) (int64, error) {
+func (f *versionCatalogFake) CountModelVersions(context.Context, string, string, model.ListOptions) (int64, error) {
 	return 0, nil
 }
 func (f *versionCatalogFake) MarkReady(context.Context, string, string) error {

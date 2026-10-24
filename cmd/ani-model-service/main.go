@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	conf "github.com/liangzai006/ani-model-service/api/model/v1"
 	bizstorage "github.com/liangzai006/ani-model-service/internal/biz/storage"
 	"github.com/liangzai006/ani-model-service/internal/data/importer"
 	kubedata "github.com/liangzai006/ani-model-service/internal/data/kubernetes"
@@ -32,6 +31,7 @@ import (
 	"github.com/liangzai006/ani-model-service/internal/server"
 	"github.com/liangzai006/ani-model-service/internal/service"
 	"github.com/liangzai006/ani-model-service/internal/worker"
+	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -190,6 +190,7 @@ func run(logger *slog.Logger) error {
 		modelService.SetArtifactStore(postgres.NewArtifactStore(pool))
 		modelService.SetAuditStore(postgres.NewAuditStore(pool))
 		modelService.SetBundleImporter(postgres.NewBundleImportStore(pool))
+		modelService.SetTrainedArtifactRegistrar(postgres.NewTrainedArtifactStore(pool))
 		if storagePort != nil {
 			owner := strings.TrimSpace(os.Getenv("ANI_IMPORT_WORKER_OWNER"))
 			if owner == "" {

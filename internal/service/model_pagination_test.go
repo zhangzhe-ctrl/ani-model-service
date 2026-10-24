@@ -7,8 +7,8 @@ import (
 	"time"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/biz/model"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func int32ptr(v int32) *int32 { return &v }
@@ -67,7 +67,7 @@ func (v *paginationVersions) ListVersions(_ context.Context, tenant, modelID str
 	}
 	return all[start:end], nil
 }
-func (v *paginationVersions) CountModelVersions(context.Context, string, string) (int64, error) {
+func (v *paginationVersions) CountModelVersions(context.Context, string, string, model.ListOptions) (int64, error) {
 	return 31, nil
 }
 

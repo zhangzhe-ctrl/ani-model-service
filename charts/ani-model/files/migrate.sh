@@ -66,9 +66,9 @@ BEGIN
   SELECT count(*) INTO table_count
   FROM information_schema.tables
   WHERE table_schema = 'public'
-    AND table_name IN ('models', 'model_versions', 'model_artifacts', 'model_import_tasks', 'audit_events');
-  IF table_count <> 5 THEN
-    RAISE EXCEPTION 'expected 5 Model tables, found %', table_count;
+    AND table_name IN ('models', 'model_versions', 'model_artifacts', 'model_import_tasks', 'audit_events', 'trained_artifact_registrations');
+  IF table_count <> 6 THEN
+    RAISE EXCEPTION 'expected 6 Model tables, found %', table_count;
   END IF;
 END
 $$;
