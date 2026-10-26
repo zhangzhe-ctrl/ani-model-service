@@ -45,3 +45,9 @@ type TrainedArtifactRegistrar interface {
 	Fail(context.Context, string, string, string) error
 	Abort(context.Context, string, string, string) error
 }
+
+// Read-only original-key reconciliation is separate from dispatch permission.
+// Not found never authorizes the caller to resend an uncertain write.
+type TrainedArtifactRegistrationReader interface {
+	GetByKey(context.Context, string, string) (TrainedArtifactRegistration, error)
+}

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	workbiz "github.com/liangzai006/ani-model-service/internal/biz/work"
 	"github.com/liangzai006/ani-model-service/internal/identity"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 type importTaskReaderFake struct {

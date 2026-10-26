@@ -90,6 +90,19 @@ func (s *TrainedArtifactStore) Get(ctx context.Context, tenantID, registrationID
 	return result, err
 }
 
+func (s *TrainedArtifactStore) GetByKey(ctx context.Context, tenantID, key string) (modelbiz.TrainedArtifactRegistration, error) {
+	tenant, err := uuid.Parse(tenantID)
+	if err != nil {
+		return modelbiz.TrainedArtifactRegistration{}, err
+	}
+	var result modelbiz.TrainedArtifactRegistration
+	err = scanTrainedArtifact(s.pool.QueryRow(ctx, `SELECT `+trainedArtifactColumns+` FROM public.trained_artifact_registrations WHERE tenant_id=$1 AND idempotency_key=$2`, tenant, key), &result)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return modelbiz.TrainedArtifactRegistration{}, modelbiz.ErrRegistrationNotFound
+	}
+	return result, err
+}
+
 func (s *TrainedArtifactStore) MarkUploaded(ctx context.Context, tenantID, registrationID string) error {
 	tenant, id, err := parseRegistrationIDs(tenantID, registrationID)
 	if err != nil {

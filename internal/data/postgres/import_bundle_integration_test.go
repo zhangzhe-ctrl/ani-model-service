@@ -157,6 +157,8 @@ func TestBundleImportStorePostgres(t *testing.T) {
 
 	concurrent := in
 	concurrent.IdempotencyKey = "concurrent-" + uuid.NewString()
+	concurrent.Name = "concurrent-" + uuid.NewString()
+	concurrent.ExternalModelID = "org/" + concurrent.Name
 	const workers = 8
 	results := make(chan modelbiz.BundleImportResult, workers)
 	errs := make(chan error, workers)

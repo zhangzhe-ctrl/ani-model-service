@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/identity"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"

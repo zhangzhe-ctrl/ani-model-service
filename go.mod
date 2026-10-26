@@ -8,7 +8,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/liangzai006/ani-inference-service/api v0.1.2-0.20261021113945-1356085e3d92
-	github.com/liangzai006/ani-model-service/api v0.0.0-20261021113912-a21befaaa5e5
 	github.com/minio/minio-go/v7 v7.2.0
 	github.com/prometheus/client_golang v1.24.1
 	go.opentelemetry.io/otel v1.45.0
@@ -65,6 +64,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	github.com/zhangzhe-ctrl/ani-accelerator-service v0.0.0-20261018033121-4f084c9f5f25 // indirect
+	github.com/zhangzhe-ctrl/ani-model-service/api v0.0.0-20261022131120-2a7a2a2851cf
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect

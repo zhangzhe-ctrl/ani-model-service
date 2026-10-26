@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	auditbiz "github.com/liangzai006/ani-model-service/internal/biz/audit"
 	"github.com/liangzai006/ani-model-service/internal/data/postgres"
 	"github.com/liangzai006/ani-model-service/internal/identity"
 	"github.com/liangzai006/ani-model-service/internal/service"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func TestModelQueriesPostgres(t *testing.T) {

@@ -15,12 +15,12 @@ cp go.mod "$temporary_root/go.mod"
 cp go.sum "$temporary_root/go.sum"
 modfile=$temporary_root/go.mod
 "$GO" mod edit -modfile="$modfile" \
-  -replace="github.com/liangzai006/ani-model-service/api=$repository_root/api"
+  -replace="github.com/zhangzhe-ctrl/ani-model-service/api=$repository_root/api"
 
 # Load every local API package together with the canonical Inference contract.
 # Merely testing packages separately misses protobuf registration collisions.
 "$GO" list -mod=readonly -modfile="$modfile" \
-  github.com/liangzai006/ani-model-service/api/... \
+  github.com/zhangzhe-ctrl/ani-model-service/api/... \
   github.com/liangzai006/ani-inference-service/api/inference/v1 \
   >"$temporary_root/packages"
 {

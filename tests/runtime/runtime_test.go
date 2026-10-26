@@ -38,8 +38,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	conf "github.com/liangzai006/ani-model-service/api/model/v1"
 	serverpkg "github.com/liangzai006/ani-model-service/internal/server"
+	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func TestRuntimeLifecycle(t *testing.T) {

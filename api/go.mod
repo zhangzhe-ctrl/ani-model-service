@@ -1,4 +1,4 @@
-module github.com/liangzai006/ani-model-service/api
+module github.com/zhangzhe-ctrl/ani-model-service/api
 
 go 1.26.7
 

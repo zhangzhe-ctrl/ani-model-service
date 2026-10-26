@@ -20,26 +20,29 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ModelService_CreateModel_FullMethodName             = "/model.v1.ModelService/CreateModel"
-	ModelService_GetModel_FullMethodName                = "/model.v1.ModelService/GetModel"
-	ModelService_ListModels_FullMethodName              = "/model.v1.ModelService/ListModels"
-	ModelService_SearchExternalModels_FullMethodName    = "/model.v1.ModelService/SearchExternalModels"
-	ModelService_DeleteModel_FullMethodName             = "/model.v1.ModelService/DeleteModel"
-	ModelService_GetModelVersion_FullMethodName         = "/model.v1.ModelService/GetModelVersion"
-	ModelService_ListModelVersions_FullMethodName       = "/model.v1.ModelService/ListModelVersions"
-	ModelService_ListModelOperations_FullMethodName     = "/model.v1.ModelService/ListModelOperations"
-	ModelService_DeleteModelVersion_FullMethodName      = "/model.v1.ModelService/DeleteModelVersion"
-	ModelService_CreateModelVersion_FullMethodName      = "/model.v1.ModelService/CreateModelVersion"
-	ModelService_GetUploadURL_FullMethodName            = "/model.v1.ModelService/GetUploadURL"
-	ModelService_ImportModel_FullMethodName             = "/model.v1.ModelService/ImportModel"
-	ModelService_ImportModelBundle_FullMethodName       = "/model.v1.ModelService/ImportModelBundle"
-	ModelService_GetImportTask_FullMethodName           = "/model.v1.ModelService/GetImportTask"
-	ModelService_GetImportTaskLogs_FullMethodName       = "/model.v1.ModelService/GetImportTaskLogs"
-	ModelService_RetryImportTask_FullMethodName         = "/model.v1.ModelService/RetryImportTask"
-	ModelService_GetModelDownloadURL_FullMethodName     = "/model.v1.ModelService/GetModelDownloadURL"
-	ModelService_PrepareTrainedArtifact_FullMethodName  = "/model.v1.ModelService/PrepareTrainedArtifact"
-	ModelService_CompleteTrainedArtifact_FullMethodName = "/model.v1.ModelService/CompleteTrainedArtifact"
-	ModelService_AbortTrainedArtifact_FullMethodName    = "/model.v1.ModelService/AbortTrainedArtifact"
+	ModelService_CreateModel_FullMethodName                    = "/model.v1.ModelService/CreateModel"
+	ModelService_GetModel_FullMethodName                       = "/model.v1.ModelService/GetModel"
+	ModelService_ListModels_FullMethodName                     = "/model.v1.ModelService/ListModels"
+	ModelService_SearchExternalModels_FullMethodName           = "/model.v1.ModelService/SearchExternalModels"
+	ModelService_DeleteModel_FullMethodName                    = "/model.v1.ModelService/DeleteModel"
+	ModelService_GetModelVersion_FullMethodName                = "/model.v1.ModelService/GetModelVersion"
+	ModelService_ListModelVersions_FullMethodName              = "/model.v1.ModelService/ListModelVersions"
+	ModelService_ListModelOperations_FullMethodName            = "/model.v1.ModelService/ListModelOperations"
+	ModelService_DeleteModelVersion_FullMethodName             = "/model.v1.ModelService/DeleteModelVersion"
+	ModelService_CreateModelVersion_FullMethodName             = "/model.v1.ModelService/CreateModelVersion"
+	ModelService_GetUploadURL_FullMethodName                   = "/model.v1.ModelService/GetUploadURL"
+	ModelService_ImportModel_FullMethodName                    = "/model.v1.ModelService/ImportModel"
+	ModelService_ImportModelBundle_FullMethodName              = "/model.v1.ModelService/ImportModelBundle"
+	ModelService_GetImportTask_FullMethodName                  = "/model.v1.ModelService/GetImportTask"
+	ModelService_GetImportTaskLogs_FullMethodName              = "/model.v1.ModelService/GetImportTaskLogs"
+	ModelService_RetryImportTask_FullMethodName                = "/model.v1.ModelService/RetryImportTask"
+	ModelService_GetModelDownloadURL_FullMethodName            = "/model.v1.ModelService/GetModelDownloadURL"
+	ModelService_PrepareTrainedArtifact_FullMethodName         = "/model.v1.ModelService/PrepareTrainedArtifact"
+	ModelService_CompleteTrainedArtifact_FullMethodName        = "/model.v1.ModelService/CompleteTrainedArtifact"
+	ModelService_AbortTrainedArtifact_FullMethodName           = "/model.v1.ModelService/AbortTrainedArtifact"
+	ModelService_ResolveFinetuningFacts_FullMethodName         = "/model.v1.ModelService/ResolveFinetuningFacts"
+	ModelService_GetTrainedArtifactRegistration_FullMethodName = "/model.v1.ModelService/GetTrainedArtifactRegistration"
+	ModelService_GetTrainedArtifactUploadURL_FullMethodName    = "/model.v1.ModelService/GetTrainedArtifactUploadURL"
 )
 
 // ModelServiceClient is the client API for ModelService service.
@@ -73,6 +76,13 @@ type ModelServiceClient interface {
 	PrepareTrainedArtifact(ctx context.Context, in *PrepareTrainedArtifactRequest, opts ...grpc.CallOption) (*PrepareTrainedArtifactResponse, error)
 	CompleteTrainedArtifact(ctx context.Context, in *CompleteTrainedArtifactRequest, opts ...grpc.CallOption) (*CompleteTrainedArtifactResponse, error)
 	AbortTrainedArtifact(ctx context.Context, in *AbortTrainedArtifactRequest, opts ...grpc.CallOption) (*AbortTrainedArtifactResponse, error)
+	// Read-only source/target preflight. It neither reserves a name nor starts an import.
+	ResolveFinetuningFacts(ctx context.Context, in *ResolveFinetuningFactsRequest, opts ...grpc.CallOption) (*ResolveFinetuningFactsResponse, error)
+	// Observe the original registration after a lost write response. A miss is
+	// a point-in-time observation and never proof that a request was not sent.
+	GetTrainedArtifactRegistration(ctx context.Context, in *GetTrainedArtifactRegistrationRequest, opts ...grpc.CallOption) (*GetTrainedArtifactRegistrationResponse, error)
+	// Issue a short ticket for the existing session's original path only.
+	GetTrainedArtifactUploadURL(ctx context.Context, in *GetTrainedArtifactUploadURLRequest, opts ...grpc.CallOption) (*GetTrainedArtifactUploadURLResponse, error)
 }
 
 type modelServiceClient struct {
@@ -283,6 +293,36 @@ func (c *modelServiceClient) AbortTrainedArtifact(ctx context.Context, in *Abort
 	return out, nil
 }
 
+func (c *modelServiceClient) ResolveFinetuningFacts(ctx context.Context, in *ResolveFinetuningFactsRequest, opts ...grpc.CallOption) (*ResolveFinetuningFactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveFinetuningFactsResponse)
+	err := c.cc.Invoke(ctx, ModelService_ResolveFinetuningFacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelServiceClient) GetTrainedArtifactRegistration(ctx context.Context, in *GetTrainedArtifactRegistrationRequest, opts ...grpc.CallOption) (*GetTrainedArtifactRegistrationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTrainedArtifactRegistrationResponse)
+	err := c.cc.Invoke(ctx, ModelService_GetTrainedArtifactRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelServiceClient) GetTrainedArtifactUploadURL(ctx context.Context, in *GetTrainedArtifactUploadURLRequest, opts ...grpc.CallOption) (*GetTrainedArtifactUploadURLResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTrainedArtifactUploadURLResponse)
+	err := c.cc.Invoke(ctx, ModelService_GetTrainedArtifactUploadURL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ModelServiceServer is the server API for ModelService service.
 // All implementations must embed UnimplementedModelServiceServer
 // for forward compatibility.
@@ -314,6 +354,13 @@ type ModelServiceServer interface {
 	PrepareTrainedArtifact(context.Context, *PrepareTrainedArtifactRequest) (*PrepareTrainedArtifactResponse, error)
 	CompleteTrainedArtifact(context.Context, *CompleteTrainedArtifactRequest) (*CompleteTrainedArtifactResponse, error)
 	AbortTrainedArtifact(context.Context, *AbortTrainedArtifactRequest) (*AbortTrainedArtifactResponse, error)
+	// Read-only source/target preflight. It neither reserves a name nor starts an import.
+	ResolveFinetuningFacts(context.Context, *ResolveFinetuningFactsRequest) (*ResolveFinetuningFactsResponse, error)
+	// Observe the original registration after a lost write response. A miss is
+	// a point-in-time observation and never proof that a request was not sent.
+	GetTrainedArtifactRegistration(context.Context, *GetTrainedArtifactRegistrationRequest) (*GetTrainedArtifactRegistrationResponse, error)
+	// Issue a short ticket for the existing session's original path only.
+	GetTrainedArtifactUploadURL(context.Context, *GetTrainedArtifactUploadURLRequest) (*GetTrainedArtifactUploadURLResponse, error)
 	mustEmbedUnimplementedModelServiceServer()
 }
 
@@ -383,6 +430,15 @@ func (UnimplementedModelServiceServer) CompleteTrainedArtifact(context.Context, 
 }
 func (UnimplementedModelServiceServer) AbortTrainedArtifact(context.Context, *AbortTrainedArtifactRequest) (*AbortTrainedArtifactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AbortTrainedArtifact not implemented")
+}
+func (UnimplementedModelServiceServer) ResolveFinetuningFacts(context.Context, *ResolveFinetuningFactsRequest) (*ResolveFinetuningFactsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveFinetuningFacts not implemented")
+}
+func (UnimplementedModelServiceServer) GetTrainedArtifactRegistration(context.Context, *GetTrainedArtifactRegistrationRequest) (*GetTrainedArtifactRegistrationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTrainedArtifactRegistration not implemented")
+}
+func (UnimplementedModelServiceServer) GetTrainedArtifactUploadURL(context.Context, *GetTrainedArtifactUploadURLRequest) (*GetTrainedArtifactUploadURLResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTrainedArtifactUploadURL not implemented")
 }
 func (UnimplementedModelServiceServer) mustEmbedUnimplementedModelServiceServer() {}
 func (UnimplementedModelServiceServer) testEmbeddedByValue()                      {}
@@ -765,6 +821,60 @@ func _ModelService_AbortTrainedArtifact_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ModelService_ResolveFinetuningFacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveFinetuningFactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).ResolveFinetuningFacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_ResolveFinetuningFacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).ResolveFinetuningFacts(ctx, req.(*ResolveFinetuningFactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelService_GetTrainedArtifactRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTrainedArtifactRegistrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).GetTrainedArtifactRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_GetTrainedArtifactRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).GetTrainedArtifactRegistration(ctx, req.(*GetTrainedArtifactRegistrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelService_GetTrainedArtifactUploadURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTrainedArtifactUploadURLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelServiceServer).GetTrainedArtifactUploadURL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelService_GetTrainedArtifactUploadURL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelServiceServer).GetTrainedArtifactUploadURL(ctx, req.(*GetTrainedArtifactUploadURLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ModelService_ServiceDesc is the grpc.ServiceDesc for ModelService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -851,6 +961,18 @@ var ModelService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AbortTrainedArtifact",
 			Handler:    _ModelService_AbortTrainedArtifact_Handler,
+		},
+		{
+			MethodName: "ResolveFinetuningFacts",
+			Handler:    _ModelService_ResolveFinetuningFacts_Handler,
+		},
+		{
+			MethodName: "GetTrainedArtifactRegistration",
+			Handler:    _ModelService_GetTrainedArtifactRegistration_Handler,
+		},
+		{
+			MethodName: "GetTrainedArtifactUploadURL",
+			Handler:    _ModelService_GetTrainedArtifactUploadURL_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

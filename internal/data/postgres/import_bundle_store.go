@@ -46,7 +46,7 @@ func (s *BundleImportStore) ImportBundle(ctx context.Context, in modelbiz.Bundle
 	} else if !errors.Is(replayErr, errBundleAggregateMissing) {
 		return modelbiz.BundleImportResult{}, replayErr
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return modelbiz.BundleImportResult{}, err
 	}
@@ -122,7 +122,7 @@ func (s *BundleImportStore) replayBundle(ctx context.Context, in modelbiz.Bundle
 	if err != nil {
 		return modelbiz.BundleImportResult{}, err
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return modelbiz.BundleImportResult{}, err
 	}

@@ -9,9 +9,9 @@ import (
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
-	conf "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/server"
 	"github.com/liangzai006/ani-model-service/internal/service"
+	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func buildApp(bc *conf.Bootstrap, logger *slog.Logger) (*kratos.App, error) {

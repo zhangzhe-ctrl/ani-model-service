@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	conf "github.com/liangzai006/ani-model-service/api/model/v1"
+	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func TestBuildAppRunsProductionComposition(t *testing.T) {

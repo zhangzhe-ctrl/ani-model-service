@@ -10,11 +10,11 @@ import (
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/google/uuid"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/biz/idempotency"
 	"github.com/liangzai006/ani-model-service/internal/biz/model"
 	"github.com/liangzai006/ani-model-service/internal/biz/storage"
 	"github.com/liangzai006/ani-model-service/internal/identity"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )

@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	conf "github.com/liangzai006/ani-model-service/api/model/v1"
+	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func NewAdminServer(

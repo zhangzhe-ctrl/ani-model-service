@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	storagedomain "github.com/liangzai006/ani-model-service/internal/biz/storage"
 	"github.com/liangzai006/ani-model-service/internal/data/importer"
 	"github.com/liangzai006/ani-model-service/internal/data/postgres"
@@ -22,6 +21,7 @@ import (
 	"github.com/liangzai006/ani-model-service/internal/identity"
 	"github.com/liangzai006/ani-model-service/internal/service"
 	"github.com/liangzai006/ani-model-service/internal/worker"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

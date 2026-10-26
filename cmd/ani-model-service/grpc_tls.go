@@ -11,7 +11,7 @@ import (
 	"github.com/go-kratos/kratos/v3/middleware"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 
-	conf "github.com/liangzai006/ani-model-service/api/model/v1"
+	conf "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 // ModelServerTLSConfig is the mandatory mTLS material for the Model gRPC server.

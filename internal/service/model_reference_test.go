@@ -7,9 +7,9 @@ import (
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/jackc/pgx/v5"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/biz/model"
 	"github.com/liangzai006/ani-model-service/internal/identity"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 const referenceModelUUID = "11111111-1111-4111-8111-111111111111"

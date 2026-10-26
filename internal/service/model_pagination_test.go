@@ -7,8 +7,8 @@ import (
 	"time"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	"github.com/liangzai006/ani-model-service/internal/biz/model"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 func int32ptr(v int32) *int32 { return &v }

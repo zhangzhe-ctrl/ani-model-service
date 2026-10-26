@@ -284,9 +284,14 @@ func TestVersionStoreMarkErrorAggregatePostgres(t *testing.T) {
 		t.Fatalf("ready version transition err=%v, want pgx.ErrNoRows", err)
 	}
 
-	deletedModel := createModel("deleted-"+uuid.NewString(), "deleted")
+	deletedModel := createModel("deleted-"+uuid.NewString(), "pending")
 	deletedVersion := createVersion(deletedModel, "v1", "pending")
 	deletedTask := createLease(deletedModel, deletedVersion)
+	alreadyDeletedVersion := createVersion(deletedModel, "v2", "deleted")
+	alreadyDeletedTask := createLease(deletedModel, alreadyDeletedVersion)
+	if _, err := pool.Exec(ctx, "UPDATE public.models SET status='deleted' WHERE tenant_id=$1 AND id=$2", tenant, deletedModel); err != nil {
+		t.Fatal(err)
+	}
 	if err := versions.MarkErrorAndMaybeModel(ctx, tenant.String(), deletedTask.String(), deletedVersion.String(), "worker", 1, "must not overwrite model"); err != nil {
 		t.Fatal(err)
 	}
@@ -297,8 +302,8 @@ func TestVersionStoreMarkErrorAggregatePostgres(t *testing.T) {
 		t.Fatalf("deleted model status=%q, want deleted", modelStatus)
 	}
 
-	deletedVersion = createVersion(deletedModel, "v2", "deleted")
-	deletedTask = createLease(deletedModel, deletedVersion)
+	deletedVersion = alreadyDeletedVersion
+	deletedTask = alreadyDeletedTask
 	if err := versions.MarkErrorAndMaybeModel(ctx, tenant.String(), deletedTask.String(), deletedVersion.String(), "worker", 1, "must not overwrite"); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("deleted version transition err=%v, want pgx.ErrNoRows", err)
 	}

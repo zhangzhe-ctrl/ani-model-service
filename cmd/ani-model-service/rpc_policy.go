@@ -17,6 +17,7 @@ import (
 )
 
 const governanceClientIdentity = "ani-governance"
+const modeldevClientIdentity = "ani-modeldev-service"
 
 // RPCPolicyMiddleware enforces method-level authorization based on client certificate identity.
 // This implements deny-by-default: only explicitly allowed (client identity, RPC method) pairs are permitted.
@@ -105,6 +106,14 @@ func ModelServicePolicy() RPCPolicy {
 			"/model.v1.ModelService/GetModelVersion",
 			"/model.v1.ModelService/GetModelDownloadURL",
 		},
+		modeldevClientIdentity: {
+			"/model.v1.ModelService/ResolveFinetuningFacts",
+			"/model.v1.ModelService/GetTrainedArtifactRegistration",
+			"/model.v1.ModelService/GetTrainedArtifactUploadURL",
+			"/model.v1.ModelService/PrepareTrainedArtifact",
+			"/model.v1.ModelService/CompleteTrainedArtifact",
+			"/model.v1.ModelService/AbortTrainedArtifact",
+		},
 		governanceClientIdentity: {
 			"/model.v1.ModelService/CreateModel",
 			"/model.v1.ModelService/GetModel",
@@ -134,6 +143,7 @@ func ModelServicePolicy() RPCPolicy {
 		expectedIdentities: map[string]string{
 			"ani-inference.ani.internal": "Inference Service",
 			governanceClientIdentity:     "Governance Service",
+			modeldevClientIdentity:       "ModelDev Service",
 		},
 	}
 }
@@ -157,6 +167,13 @@ func ModelPrincipalMiddleware() middleware.Middleware {
 				return nil, status.Errorf(codes.Unauthenticated, "client identity unavailable: %v", err)
 			}
 			if clientIdentity != governanceClientIdentity {
+				if clientIdentity == modeldevClientIdentity {
+					principal, err := modeldevPrincipal(ctx)
+					if err != nil {
+						return nil, status.Errorf(codes.Unauthenticated, "modeldev identity unavailable: %v", err)
+					}
+					return next(identity.WithPrincipal(ctx, principal), req)
+				}
 				if clientIdentity == "ani-inference.ani.internal" {
 					principal, err := inferencePrincipal(ctx)
 					if err != nil {
@@ -173,6 +190,29 @@ func ModelPrincipalMiddleware() middleware.Middleware {
 			return next(identity.WithPrincipal(ctx, principal), req)
 		}
 	}
+}
+
+func modeldevPrincipal(ctx context.Context) (identity.Principal, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return identity.Principal{}, fmt.Errorf("incoming metadata unavailable")
+	}
+	tenant, err := singleMetadataValue(md, "x-ani-tenant-id", true)
+	if err != nil {
+		return identity.Principal{}, err
+	}
+	actor, err := singleMetadataValue(md, "x-ani-actor", true)
+	if err != nil {
+		return identity.Principal{}, err
+	}
+	if !strings.HasPrefix(actor, "modeldev:") {
+		return identity.Principal{}, fmt.Errorf("modeldev audit actor required")
+	}
+	request, err := singleMetadataValue(md, "x-ani-request-id", true)
+	if err != nil {
+		return identity.Principal{}, err
+	}
+	return identity.Principal{TenantID: tenant, Actor: actor, Workload: modeldevClientIdentity, RequestID: request}, nil
 }
 
 func inferencePrincipal(ctx context.Context) (identity.Principal, error) {

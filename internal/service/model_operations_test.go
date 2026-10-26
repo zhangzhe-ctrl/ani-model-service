@@ -6,8 +6,8 @@ import (
 	"time"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-	modelv1 "github.com/liangzai006/ani-model-service/api/model/v1"
 	auditbiz "github.com/liangzai006/ani-model-service/internal/biz/audit"
+	modelv1 "github.com/zhangzhe-ctrl/ani-model-service/api/model/v1"
 )
 
 type operationAuditFake struct {
